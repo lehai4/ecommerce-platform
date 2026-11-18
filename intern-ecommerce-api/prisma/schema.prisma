@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["interactiveTransactions"]
 }
 
 datasource db {
@@ -18,6 +19,7 @@ model User {
   updatedAt DateTime @default(now())
 
   Purchase   Purchase[]
+  orders     Order[]
   UserTokens UserTokens[]
 }
 
@@ -46,6 +48,7 @@ model Product {
   createdAt          DateTime   @default(now())
   categories         Category[]
   Purchase           Purchase[]
+  orderItems         OrderItem[]
 }
 
 model Category {
@@ -73,4 +76,88 @@ model Purchase {
 enum Role {
   USER
   ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPING
+  DELIVERED
+  CANCELLED
+}
+
+/// A customer order. Holds a snapshot of the shipping details and totals at checkout time.
+model Order {
+  id   String @id @default(uuid())
+  /// Human friendly order code, e.g. "OD-261118-7F3K2A"
+  code String @unique
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+
+  status OrderStatus @default(PENDING)
+
+  customerName    String
+  phone           String
+  shippingAddress String
+  note            String?
+
+  /// Sum of base price * quantity
+  subtotal      Decimal
+  /// Sum of discounts applied to the items
+  discountTotal Decimal @default(0)
+  /// Amount the customer pays
+  total         Decimal
+
+  items   OrderItem[]
+  history OrderStatusHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// One product line in an order. Product data is copied so the order stays correct
+/// even if the product is later edited or deleted.
+model OrderItem {
+  id String @id @default(uuid())
+
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId String?
+
+  productName        String
+  productPicture     String?
+  basePrice          Decimal
+  discountPercentage Int     @default(0)
+  /// Price per unit after discount
+  unitPrice          Decimal
+  quantity           Int
+  /// unitPrice * quantity
+  lineTotal          Decimal
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+/// Every status change of an order, so admins can follow its progress.
+model OrderStatusHistory {
+  id String @id @default(uuid())
+
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+
+  status      OrderStatus
+  note        String?
+  /// User who made the change (customer or admin); null for system changes
+  changedById String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
 }

@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './models/product/product.module';
 import { CategoryModule } from './models/category/category.module';
 import { PurchaseModule } from './models/purchase/purchase.module';
+import { OrderModule } from './models/order/order.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
@@ -18,6 +19,7 @@ import { join } from 'path';
     ProductModule,
     CategoryModule,
     PurchaseModule,
+    OrderModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'storage'),
     }),

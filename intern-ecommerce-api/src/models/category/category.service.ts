@@ -47,6 +47,7 @@ export class CategoryService {
         name: { contains: categoryName, mode: 'insensitive' },
       },
       orderBy: { name: 'asc' },
+      include: { _count: { select: { products: true } } },
     });
   }
 

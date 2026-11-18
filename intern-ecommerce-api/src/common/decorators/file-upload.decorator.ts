@@ -7,15 +7,17 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { extname } from 'path';
 import { FileUploadDto } from 'src/models/product/dto/file-upload.dto';
-import { existsSync, mkdirSync } from 'fs';
-import { v4 as uuid } from 'uuid';
 
+/** Max image size: 3MB */
+export const maxImageUploadSize = 3 * 1024 * 1024;
+
+/** Files are kept in memory; ImageStorageService decides where they go. */
 export const fileConfig = {
   fileFilter: (req: any, file: any, cb: any) => {
-    if (file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+    if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
       cb(null, true);
     } else {
       cb(
@@ -27,18 +29,8 @@ export const fileConfig = {
       );
     }
   },
-  storage: diskStorage({
-    destination: (req: any, file: any, cb: any) => {
-      const uploadPath = 'storage/';
-      if (!existsSync(uploadPath)) {
-        mkdirSync(uploadPath);
-      }
-      cb(null, uploadPath);
-    },
-    filename: (req: any, file: any, cb: any) => {
-      cb(null, `${uuid()}${extname(file.originalname)}`);
-    },
-  }),
+  storage: memoryStorage(),
+  limits: { fileSize: maxImageUploadSize },
 };
 
 /** Add all file upload decorators at once

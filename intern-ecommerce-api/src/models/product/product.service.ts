@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -6,7 +6,7 @@ import { FindProductsDto } from './dto/find-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { File } from './types/file';
-import createFileStorageUrl from 'src/util/createFileStorageUrl';
+import { ImageStorageService } from 'src/common/image-storage/image-storage.service';
 
 /** Responsible for managing products in the database.
  * CRUD endpoints are available for products.
@@ -18,7 +18,10 @@ export class ProductService {
    *
    * Instantiates the class and the PrismaService dependency
    */
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly imageStorage: ImageStorageService,
+  ) {}
 
   /** Creates a new product */
   async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -32,7 +35,7 @@ export class ProductService {
         urlName,
         categories,
       },
-      include: { categories: { select: { name: true } } },
+      include: { categories: { select: { id: true, name: true } } },
     });
 
     return product;
@@ -40,11 +43,21 @@ export class ProductService {
 
   /** Uploads new product picture */
   async uploadPicture(id: string, file: File): Promise<Product> {
-    // console.log(file.filename);
+    if (!file) {
+      throw new BadRequestException('Please choose an image to upload');
+    }
+    // Make sure the product exists before uploading anything
+    await this.prisma.product.findUnique({
+      where: { id },
+      rejectOnNotFound: true,
+    });
+
+    const picture = await this.imageStorage.upload(file, 'products');
 
     return this.prisma.product.update({
       where: { id },
-      data: { picture: createFileStorageUrl(file.filename) },
+      data: { picture },
+      include: { categories: { select: { id: true, name: true } } },
     });
   }
 
@@ -66,7 +79,7 @@ export class ProductService {
         name: { contains: productName, mode: 'insensitive' },
       },
       orderBy: { name: 'asc' },
-      include: { categories: { select: { name: true } } },
+      include: { categories: { select: { id: true, name: true } } },
     });
   }
 
@@ -74,7 +87,7 @@ export class ProductService {
   async findOneById(id: string): Promise<Product> {
     return this.prisma.product.findUnique({
       where: { id },
-      include: { categories: { select: { name: true } } },
+      include: { categories: { select: { id: true, name: true } } },
       rejectOnNotFound: true,
     });
   }
@@ -83,7 +96,7 @@ export class ProductService {
   async findOneByUrlName(urlName: string): Promise<Product> {
     return this.prisma.product.findUnique({
       where: { urlName },
-      include: { categories: { select: { name: true } } },
+      include: { categories: { select: { id: true, name: true } } },
       rejectOnNotFound: true,
     });
   }
@@ -93,22 +106,30 @@ export class ProductService {
     id: string,
     updateProductDto: UpdateProductDto,
   ): Promise<Product> {
-    if (updateProductDto.name) {
-      return this.updateProductAndUrlName(id, updateProductDto);
-    }
-    const override = {
+    const data: Prisma.ProductUpdateInput = {
       name: updateProductDto.name,
       basePrice: updateProductDto.basePrice,
       discountPercentage: updateProductDto.discountPercentage,
       stock: updateProductDto.stock,
       description: updateProductDto.description,
     };
-    const product = await this.prisma.product.update({
-      where: { id },
-      data: override,
-    });
+    if (updateProductDto.name) {
+      data.urlName = this.formatUrlName(updateProductDto.name);
+    }
+    // Replace the product categories only when the field is sent
+    if (updateProductDto.categories) {
+      data.categories = {
+        set: updateProductDto.categories.map((categoryId) => ({
+          id: categoryId,
+        })),
+      };
+    }
 
-    return product;
+    return this.prisma.product.update({
+      where: { id },
+      data,
+      include: { categories: { select: { id: true, name: true } } },
+    });
   }
 
   /** Removes product from database */
@@ -131,30 +152,6 @@ export class ProductService {
     const spaceToHyphenUrlName = singleSpaceUrlName.split(' ').join('-');
 
     return spaceToHyphenUrlName;
-  }
-
-  /** Formats UrlName and updates the product with the new one.
-   *
-   * Used when the user updates the product name.
-   */
-  private updateProductAndUrlName(
-    id: string,
-    updateProductDto: UpdateProductDto,
-  ): Promise<Product> {
-    const urlName = this.formatUrlName(updateProductDto.name);
-    const override = {
-      name: updateProductDto.name,
-      basePrice: updateProductDto.basePrice,
-      discountPercentage: updateProductDto.discountPercentage,
-      stock: updateProductDto.stock,
-      description: updateProductDto.description,
-      urlName: urlName,
-    };
-
-    return this.prisma.product.update({
-      where: { id },
-      data: override,
-    });
   }
 
   /**

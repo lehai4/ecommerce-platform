@@ -187,7 +187,10 @@ describe('UserController (e2e)', () => {
         .expect(201);
 
       expect(response.body.categories).toEqual(
-        expect.arrayContaining([{ name: 'Madeira' }, { name: 'Casa' }]),
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Madeira' }),
+          expect.objectContaining({ name: 'Casa' }),
+        ]),
       );
     });
 
@@ -396,7 +399,10 @@ describe('UserController (e2e)', () => {
       expect(product.description).toEqual('Brand2 wood table for offices');
 
       expect(response.body.categories).toEqual(
-        expect.arrayContaining([{ name: 'Madeira' }, { name: 'Casa' }]),
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Madeira' }),
+          expect.objectContaining({ name: 'Casa' }),
+        ]),
       );
     });
 
@@ -445,7 +451,10 @@ describe('UserController (e2e)', () => {
       expect(product.description).toEqual('Brand2 wood table for offices');
 
       expect(response.body.categories).toEqual(
-        expect.arrayContaining([{ name: 'Madeira' }, { name: 'Casa' }]),
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Madeira' }),
+          expect.objectContaining({ name: 'Casa' }),
+        ]),
       );
     });
 
