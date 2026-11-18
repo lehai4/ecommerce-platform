@@ -38,7 +38,10 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# .env
+# Local env files (secrets). Copy from .env.example / .env.docker.example
+.env
+.env.local
+.env.docker
 .env.test
 
 storage
