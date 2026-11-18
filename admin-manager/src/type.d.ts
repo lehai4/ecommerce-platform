@@ -6,6 +6,8 @@ export interface ThemeContextProp {
   setTheme: (theme: SiderTheme) => void;
 }
 
+export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+
 export interface ProductProps {
   id: string;
   name: string;
@@ -13,9 +15,15 @@ export interface ProductProps {
   picture: string;
   basePrice: string;
   discountPercentage: number;
+  /** Price after discount */
+  salePrice: string;
   stock: number;
+  soldCount: number;
+  status: ProductStatus;
   categories: Category[];
   description: string;
+  createdAt?: string;
+  updatedAt?: string;
   quantity?: number;
 }
 export type ProductSliceProps = {
@@ -55,6 +63,8 @@ export interface IFormInput {
 export interface Category {
   id: string;
   name: string;
+  slug: string;
+  _count?: { products: number };
 }
 export interface DataTypeContact {
   key: React.Key;

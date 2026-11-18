@@ -12,7 +12,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 const EditProduct = () => {
-  const { name } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.login.currentUser);
   const axiosAuth = AxiosJWTInstance({ user });
@@ -22,10 +22,10 @@ const EditProduct = () => {
 
   useEffect(() => {
     axiosAuth
-      .get<ProductProps>(`/product/${name}`)
+      .get<ProductProps>(`/product/id/${id}`)
       .then(({ data }) => setProduct(data))
       .catch(() => setNotFound(true));
-  }, [name]);
+  }, [id]);
 
   const onSubmit = async (values: ProductFormValues, picture: File | null) => {
     if (!product) return;

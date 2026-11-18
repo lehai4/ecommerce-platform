@@ -54,7 +54,7 @@ function App() {
           errorElement: <ErrorPage />,
         },
         {
-          path: "/product-list/edit/:name",
+          path: "/product-list/edit/:id",
           element: <EditProduct />,
           errorElement: <ErrorPage />,
         },
@@ -74,7 +74,7 @@ function App() {
           errorElement: <ErrorPage />,
         },
         {
-          path: "/category/edit/:name",
+          path: "/category/edit/:id",
           element: <EditCategory />,
           errorElement: <ErrorPage />,
         },

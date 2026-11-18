@@ -30,7 +30,7 @@ const CreateProduct = () => {
           toast.warn(
             `Product created, but the picture failed: ${apiErrorMessage(error)}`
           );
-          navigate(`/product-list/edit/${data.urlName}`);
+          navigate(`/product-list/edit/${data.id}`);
           return;
         }
       }

@@ -2,38 +2,34 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { Button, Card, Form, Input, Space, type FormProps } from "antd";
+import { apiErrorMessage } from "@/lib/apiError";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-type FieldType = {
-  name?: string;
-};
+import CategoryForm, { CategoryFormValues } from "./CategoryForm";
+
 const CreateCategory = () => {
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.login.currentUser);
-
   const axiosAuth = AxiosJWTInstance({ user });
-  const onFinish: FormProps<FieldType>["onFinish"] = async (values) => {
-    await axiosAuth({
-      url: `/category`,
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${user?.accessToken}`,
-      },
-      data: values,
-    })
-      .then(() => {
-        toast.success("Create Category successfully!");
-        navigate("/category");
-      })
-      .catch((err) => {
-        toast.error(err.response.data.message);
-      });
+  const [submitting, setSubmitting] = useState(false);
+
+  const onSubmit = async (values: CategoryFormValues) => {
+    setSubmitting(true);
+    try {
+      const { data } = await axiosAuth.post("/category", values);
+      toast.success(`"${data.name}" created`);
+      navigate("/category");
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
-      <Helmet title="CreateCategory">
+      <Helmet title="New category">
         <></>
       </Helmet>
       <PageHeader
@@ -41,31 +37,11 @@ const CreateCategory = () => {
         description="Add a category to group your products."
         backTo="/category"
       />
-      <Card className="max-w-2xl">
-        <Form
-          name="create-category"
-          layout="vertical"
-          requiredMark="optional"
-          onFinish={onFinish}
-          autoComplete="off"
-        >
-          <Form.Item<FieldType>
-            name="name"
-            label="Category name"
-            rules={[{ required: true, message: "Please input category!" }]}
-          >
-            <Input size="large" placeholder="e.g. Electronics" />
-          </Form.Item>
-          <div className="flex justify-end">
-            <Space>
-              <Button htmlType="reset">Reset</Button>
-              <Button type="primary" htmlType="submit">
-                Create category
-              </Button>
-            </Space>
-          </div>
-        </Form>
-      </Card>
+      <CategoryForm
+        submitText="Create category"
+        submitting={submitting}
+        onSubmit={onSubmit}
+      />
     </>
   );
 };

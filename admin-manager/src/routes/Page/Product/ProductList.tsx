@@ -4,10 +4,16 @@ import PageHeader from "@/components/PageHeader";
 import { useResponsiveColumns } from "@/components/TableList";
 import ProductPictureModal from "@/components/product/ProductPictureModal";
 import { formatMoney } from "@/constants/order";
+import {
+  LOW_STOCK,
+  PRODUCT_SORT_OPTIONS,
+  PRODUCT_STATUSES,
+  PRODUCT_STATUS_META,
+} from "@/constants/product";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { apiErrorMessage } from "@/lib/apiError";
 import { pictureUrl } from "@/lib/image";
-import { ProductProps } from "@/type";
+import type { Category, Paginated, ProductProps, ProductStatus } from "@/type";
 import {
   CameraOutlined,
   DeleteOutlined,
@@ -21,6 +27,7 @@ import {
   Image,
   Input,
   Popconfirm,
+  Select,
   Space,
   Table,
   TableColumnsType,
@@ -28,66 +35,93 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useDebounce } from "use-debounce";
 
 const PAGE_SIZE = 10;
-const LOW_STOCK = 5;
 
 const ProductList = () => {
   const user = useAppSelector((state) => state.auth.login.currentUser);
   const axiosAuth = AxiosJWTInstance({ user });
 
-  const [products, setProducts] = useState<ProductProps[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState("");
+  // Filters live in the URL so they survive going to a product and back.
+  const [params, setParams] = useSearchParams();
+  const page = Number(params.get("page")) || 1;
+  const status = (params.get("status") as ProductStatus) || undefined;
+  const categoryId = params.get("categoryId") || undefined;
+  const stockLevel = params.get("stockLevel") || undefined;
+  const sort = params.get("sort") || "newest";
+  const [query, setQuery] = useState(params.get("q") ?? "");
   const [search] = useDebounce(query.trim(), 400);
+
+  const [result, setResult] = useState<Paginated<ProductProps>>();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(false);
   const [pictureFor, setPictureFor] = useState<ProductProps>();
 
-  const fetchPage = async (pageToLoad: number) => {
-    setLoading(true);
-    try {
-      const { data } = await axiosAuth.get<ProductProps[]>("/product", {
-        params: {
-          page: pageToLoad,
-          offset: PAGE_SIZE,
-          productName: search || undefined,
-        },
-      });
-      setProducts((prev) => (pageToLoad === 1 ? data : [...prev, ...data]));
-      setHasMore(data.length === PAGE_SIZE);
-      setPage(pageToLoad);
-    } catch (error) {
-      toast.error(apiErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
+  const updateParams = (next: Record<string, string | undefined>) => {
+    const merged = new URLSearchParams(params);
+    Object.entries(next).forEach(([key, value]) =>
+      value ? merged.set(key, value) : merged.delete(key)
+    );
+    setParams(merged, { replace: true });
   };
 
+  const load = useCallback(() => {
+    setLoading(true);
+    axiosAuth
+      .get<Paginated<ProductProps>>("/product/admin", {
+        params: {
+          page,
+          offset: PAGE_SIZE,
+          productName: params.get("q") || undefined,
+          status,
+          categoryId,
+          stockLevel,
+          sort,
+        },
+      })
+      .then(({ data }) => setResult(data))
+      .catch((error) => toast.error(apiErrorMessage(error)))
+      .finally(() => setLoading(false));
+  }, [params]);
+
+  useEffect(load, [load]);
+
   useEffect(() => {
-    fetchPage(1);
+    axiosAuth
+      .get<Category[]>("/category", { params: { offset: 100 } })
+      .then(({ data }) => setCategories(data))
+      .catch(() => undefined);
+  }, []);
+
+  // Search box -> URL (and back to page 1)
+  useEffect(() => {
+    if ((params.get("q") ?? "") !== search) {
+      updateParams({ q: search || undefined, page: undefined });
+    }
   }, [search]);
 
   const onDelete = async (product: ProductProps) => {
     try {
       await axiosAuth.delete(`/product/${product.id}`);
-      setProducts((prev) => prev.filter((p) => p.id !== product.id));
       toast.success(`"${product.name}" deleted`);
+      load();
     } catch (error) {
       toast.error(apiErrorMessage(error));
     }
   };
+
+  const hasFilters = !!(params.get("q") || status || categoryId || stockLevel);
 
   const baseColumns: TableColumnsType<ProductProps> = [
     {
       title: "Product",
       key: "product",
       render: (_, product) => (
-        <div className="flex items-center gap-3 min-w-[240px]">
+        <div className="flex items-center gap-3 min-w-[220px]">
           <Tooltip title="Change picture">
             <button
               type="button"
@@ -108,15 +142,18 @@ const ProductList = () => {
             </button>
           </Tooltip>
           <div className="min-w-0">
-            <Link to={`/product-list/edit/${product.urlName}`}>
-              <Typography.Text strong className="block !text-inherit hover:!text-indigo-600">
+            <Link to={`/product-list/edit/${product.id}`}>
+              <Typography.Text
+                strong
+                className="block !text-inherit hover:!text-indigo-600"
+              >
                 {product.name}
               </Typography.Text>
             </Link>
             <div className="mt-1 flex flex-wrap gap-1">
               {product.categories?.length ? (
                 product.categories.map((c) => (
-                  <Tag key={c.id ?? c.name} className="!mr-0" bordered={false}>
+                  <Tag key={c.id} className="!mr-0" bordered={false}>
                     {c.name}
                   </Tag>
                 ))
@@ -131,22 +168,33 @@ const ProductList = () => {
       ),
     },
     {
+      title: "Status",
+      dataIndex: "status",
+      width: 100,
+      render: (value: ProductStatus) => (
+        <Tooltip title={PRODUCT_STATUS_META[value].description}>
+          <Tag color={PRODUCT_STATUS_META[value].color} className="!mr-0">
+            {PRODUCT_STATUS_META[value].label}
+          </Tag>
+        </Tooltip>
+      ),
+    },
+    {
       title: "Price",
       key: "price",
       align: "right",
-      width: 140,
+      width: 110,
       render: (_, product) => {
-        const base = Number(product.basePrice);
         const discount = Number(product.discountPercentage) || 0;
-        if (!discount) return formatMoney(base);
+        if (!discount) return formatMoney(product.salePrice);
         return (
           <div className="flex flex-col items-end">
             <Typography.Text strong>
-              {formatMoney(base * (1 - discount / 100))}
+              {formatMoney(product.salePrice)}
             </Typography.Text>
             <span className="flex items-center gap-1">
               <Typography.Text type="secondary" delete className="text-xs">
-                {formatMoney(base)}
+                {formatMoney(product.basePrice)}
               </Typography.Text>
               <Tag color="green" bordered={false} className="!mr-0 text-xs">
                 -{discount}%
@@ -160,36 +208,47 @@ const ProductList = () => {
       title: "Stock",
       dataIndex: "stock",
       align: "right",
-      width: 120,
-      render: (stock: number) =>
-        stock <= 0 ? (
-          <Tag color="red" bordered={false} className="!mr-0">
-            Out of stock
-          </Tag>
-        ) : stock <= LOW_STOCK ? (
-          <Tag color="orange" bordered={false} className="!mr-0">
-            {stock} left
-          </Tag>
-        ) : (
-          <Typography.Text>{stock}</Typography.Text>
-        ),
+      width: 110,
+      render: (stock: number, product) => (
+        <div className="flex flex-col items-end">
+          {stock <= 0 ? (
+            <Tag color="red" bordered={false} className="!mr-0">
+              Out of stock
+            </Tag>
+          ) : stock <= LOW_STOCK ? (
+            <Tag color="orange" bordered={false} className="!mr-0">
+              {stock} left
+            </Tag>
+          ) : (
+            <Typography.Text>{stock}</Typography.Text>
+          )}
+          <Typography.Text type="secondary" className="text-xs">
+            {product.soldCount} sold
+          </Typography.Text>
+        </div>
+      ),
     },
     {
       title: "",
       key: "actions",
       align: "right",
       fixed: "right",
-      width: 110,
+      width: 90,
       render: (_, product) => (
         <Space size={4}>
           <Tooltip title="Edit">
-            <Link to={`/product-list/edit/${product.urlName}`}>
+            <Link to={`/product-list/edit/${product.id}`}>
               <Button type="text" icon={<EditOutlined />} aria-label="Edit" />
             </Link>
           </Tooltip>
           <Popconfirm
             title="Delete product"
-            description={`Delete "${product.name}"? This cannot be undone.`}
+            description={
+              <span className="block max-w-[260px]">
+                "{product.name}" will disappear from the shop and this list.
+                Existing orders keep their copy of it.
+              </span>
+            }
             onConfirm={() => onDelete(product)}
             okText="Delete"
             okButtonProps={{ danger: true }}
@@ -226,43 +285,84 @@ const ProductList = () => {
         }
       />
       <Card>
-        <div className="mb-4 max-w-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <Input
             allowClear
             prefix={<SearchOutlined />}
             placeholder="Search products..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            className="w-full sm:w-60"
           />
+          <div className="contents">
+            <Select
+              allowClear
+              placeholder="Category"
+              value={categoryId}
+              onChange={(v) => updateParams({ categoryId: v, page: undefined })}
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+              className="w-[calc(50%-4px)] sm:w-40"
+              showSearch
+              optionFilterProp="label"
+            />
+            <Select
+              allowClear
+              placeholder="Status"
+              value={status}
+              onChange={(v) => updateParams({ status: v, page: undefined })}
+              options={PRODUCT_STATUSES.map((s) => ({
+                value: s,
+                label: PRODUCT_STATUS_META[s].label,
+              }))}
+              className="w-[calc(50%-4px)] sm:w-32"
+            />
+            <Select
+              allowClear
+              placeholder="Stock"
+              value={stockLevel}
+              onChange={(v) => updateParams({ stockLevel: v, page: undefined })}
+              options={[
+                { value: "low", label: `Low stock (≤ ${LOW_STOCK})` },
+                { value: "out", label: "Out of stock" },
+              ]}
+              className="w-[calc(50%-4px)] sm:w-40"
+            />
+            <Select
+              value={sort}
+              onChange={(v) =>
+                updateParams({ sort: v === "newest" ? undefined : v, page: undefined })
+              }
+              options={PRODUCT_SORT_OPTIONS.map((o) => ({ ...o }))}
+              className="w-[calc(50%-4px)] sm:ml-auto sm:w-44"
+            />
+          </div>
         </div>
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={products}
-          loading={loading && products.length === 0}
-          pagination={false}
+          dataSource={result?.data ?? []}
+          loading={loading}
           scroll={{ x: "max-content" }}
           size="middle"
           locale={{
-            emptyText: search ? "No products match your search" : "No products yet",
+            emptyText: hasFilters
+              ? "No products match these filters"
+              : "No products yet",
+          }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: result?.total ?? 0,
+            showSizeChanger: false,
+            showTotal: (total) => `${total} ${total === 1 ? "product" : "products"}`,
+            onChange: (p) => updateParams({ page: p > 1 ? String(p) : undefined }),
           }}
         />
-        {hasMore && (
-          <div className="mt-4 flex justify-center">
-            <Button loading={loading} onClick={() => fetchPage(page + 1)}>
-              Load more
-            </Button>
-          </div>
-        )}
       </Card>
       <ProductPictureModal
         product={pictureFor}
         onClose={() => setPictureFor(undefined)}
-        onUploaded={(updated) =>
-          setProducts((prev) =>
-            prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
-          )
-        }
+        onUploaded={() => load()}
       />
     </>
   );

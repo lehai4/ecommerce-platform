@@ -108,7 +108,7 @@ const ProductDetailSlug = () => {
                 {product.name}
               </Typography.Title>
               <Statistic
-                value={product.basePrice}
+                value={product.salePrice ?? product.basePrice}
                 precision={2}
                 prefix="$"
                 valueStyle={{ fontSize: 30, fontWeight: 700, color: "#4f46e5" }}

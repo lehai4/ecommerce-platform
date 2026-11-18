@@ -2,7 +2,8 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import { formatMoney } from "@/constants/order";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { pictureUrl } from "@/lib/image";
-import type { Category, ProductProps } from "@/type";
+import { PRODUCT_STATUSES, PRODUCT_STATUS_META } from "@/constants/product";
+import type { Category, ProductProps, ProductStatus } from "@/type";
 import {
   Button,
   Card,
@@ -25,6 +26,7 @@ export type ProductFormValues = {
   discountPercentage: number;
   stock: number;
   categories: string[];
+  status: ProductStatus;
 };
 
 type ProductFormProps = {
@@ -44,8 +46,9 @@ const toValues = (product?: ProductProps): Partial<ProductFormValues> =>
         discountPercentage: Number(product.discountPercentage) || 0,
         stock: Number(product.stock) || 0,
         categories: (product.categories ?? []).map((c) => c.id),
+        status: product.status ?? "ACTIVE",
       }
-    : { discountPercentage: 0, stock: 0, categories: [] };
+    : { discountPercentage: 0, stock: 0, categories: [], status: "ACTIVE" };
 
 /** Shared create / edit form for products */
 const ProductForm = ({
@@ -65,6 +68,7 @@ const ProductForm = ({
 
   const basePrice = Form.useWatch("basePrice", form);
   const discount = Form.useWatch("discountPercentage", form);
+  const status = Form.useWatch("status", form);
   const finalPrice = Number(basePrice || 0) * (1 - Number(discount || 0) / 100);
 
   useEffect(() => {
@@ -176,6 +180,21 @@ const ProductForm = ({
         </div>
 
         <div className="flex flex-col gap-6">
+          <Card title="Status">
+            <Form.Item<ProductFormValues> name="status" className="!mb-2">
+              <Select
+                size="large"
+                options={PRODUCT_STATUSES.map((s) => ({
+                  value: s,
+                  label: PRODUCT_STATUS_META[s].label,
+                }))}
+              />
+            </Form.Item>
+            <Typography.Text type="secondary" className="text-xs">
+              {PRODUCT_STATUS_META[(status as ProductStatus) ?? "ACTIVE"]
+                ?.description}
+            </Typography.Text>
+          </Card>
           <Card title="Picture">
             <ImagePicker
               value={picture}

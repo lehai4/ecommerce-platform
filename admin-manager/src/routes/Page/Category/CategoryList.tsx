@@ -32,6 +32,7 @@ const PAGE_SIZE = 10;
 type CategoryRow = {
   id: string;
   name: string;
+  slug: string;
   _count?: { products: number };
 };
 
@@ -86,15 +87,20 @@ const CategoryList = () => {
       dataIndex: "name",
       render: (name: string, category) => (
         <Link
-          to={`/category/edit/${category.name}`}
+          to={`/category/edit/${category.id}`}
           className="flex items-center gap-3 min-w-[200px]"
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
             <FolderOutlined />
           </span>
-          <Typography.Text strong className="!text-inherit">
-            {name}
-          </Typography.Text>
+          <span className="min-w-0">
+            <Typography.Text strong className="block !text-inherit">
+              {name}
+            </Typography.Text>
+            <Typography.Text type="secondary" className="text-xs">
+              /{category.slug}
+            </Typography.Text>
+          </span>
         </Link>
       ),
     },
@@ -121,7 +127,7 @@ const CategoryList = () => {
       render: (_, category) => (
         <Space size={4}>
           <Tooltip title="Edit">
-            <Link to={`/category/edit/${category.name}`}>
+            <Link to={`/category/edit/${category.id}`}>
               <Button type="text" icon={<EditOutlined />} aria-label="Edit" />
             </Link>
           </Tooltip>

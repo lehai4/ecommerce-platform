@@ -2,71 +2,65 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { getCategoryByName } from "@/redux/api";
-import { Category } from "@/type";
-
-import { Button, Card, Form, Input, Space, type FormProps } from "antd";
+import { apiErrorMessage } from "@/lib/apiError";
+import type { Category } from "@/type";
+import { Button, Card, Result, Skeleton } from "antd";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-
-type FieldType = {
-  name?: string;
-  description?: string;
-  basePrice?: string;
-  stock?: string;
-  discountPercentage?: string;
-  categories?: any;
-};
+import CategoryForm, { CategoryFormValues } from "./CategoryForm";
 
 const EditCategory = () => {
-  const params = useParams();
-  const [form] = Form.useForm();
+  const { id } = useParams();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.login.currentUser);
-
   const axiosAuth = AxiosJWTInstance({ user });
   const [category, setCategory] = useState<Category>();
+  const [notFound, setNotFound] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const onFinish: FormProps<FieldType>["onFinish"] = async (values) => {
-    const res = await axiosAuth({
-      method: "PATCH",
-      url: `/category/${category?.id}`,
-      headers: {
-        Authorization: `Bearer ${user?.accessToken}`,
-      },
-      data: values,
-    });
-    if (res.data) {
+  useEffect(() => {
+    axiosAuth
+      .get<Category>(`/category/id/${id}`)
+      .then(({ data }) => setCategory(data))
+      .catch(() => setNotFound(true));
+  }, [id]);
+
+  const onSubmit = async (values: CategoryFormValues) => {
+    setSubmitting(true);
+    try {
+      // Only send the slug when the admin changed it
+      const body =
+        values.slug && values.slug !== category?.slug
+          ? values
+          : { name: values.name };
+      const { data } = await axiosAuth.patch(`/category/${id}`, body);
+      toast.success(`"${data.name}" saved`);
       navigate("/category");
-      toast.success("Edit Category successfully!");
-    } else {
-      toast.error("Edit Category failed");
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    } finally {
+      setSubmitting(false);
     }
   };
-  const onFill = () => {
-    form.setFieldsValue({
-      name: category?.name,
-    });
-  };
-  useEffect(() => {
-    onFill();
-  }, [category]);
-  useEffect(() => {
-    let mounted = true;
-    getCategoryByName({ name: params.name as string }).then((items) => {
-      if (mounted) {
-        setCategory(items.data);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+
+  if (notFound) {
+    return (
+      <Result
+        status="404"
+        title="Category not found"
+        extra={
+          <Link to="/category">
+            <Button type="primary">Back to categories</Button>
+          </Link>
+        }
+      />
+    );
+  }
 
   return (
     <>
-      <Helmet title="EditCategory">
+      <Helmet title="Edit category">
         <></>
       </Helmet>
       <PageHeader
@@ -74,31 +68,19 @@ const EditCategory = () => {
         description={category?.name}
         backTo="/category"
       />
-      <Card className="max-w-2xl">
-        <Form
-          layout="vertical"
-          requiredMark="optional"
-          initialValues={{ category }}
-          onFinish={onFinish}
-          form={form}
-        >
-          <Form.Item<FieldType>
-            name="name"
-            label="Category name"
-            rules={[{ required: true, message: "Please input category!" }]}
-          >
-            <Input size="large" placeholder="Category name" />
-          </Form.Item>
-          <div className="flex justify-end">
-            <Space>
-              <Button onClick={onFill}>Reset</Button>
-              <Button type="primary" htmlType="submit">
-                Save changes
-              </Button>
-            </Space>
-          </div>
-        </Form>
-      </Card>
+      {category ? (
+        <CategoryForm
+          isEdit
+          initialValues={{ name: category.name, slug: category.slug }}
+          submitText="Save changes"
+          submitting={submitting}
+          onSubmit={onSubmit}
+        />
+      ) : (
+        <Card className="max-w-2xl">
+          <Skeleton active />
+        </Card>
+      )}
     </>
   );
 };
