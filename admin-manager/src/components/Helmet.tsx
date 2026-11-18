@@ -9,7 +9,7 @@ const Helmet = (props: HelmetProps): JSX.Element => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-  return <div>{props.children}</div>;
+  return <>{props.children}</>;
 };
 
 export default Helmet;

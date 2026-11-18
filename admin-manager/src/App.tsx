@@ -15,6 +15,11 @@ import ErrorPage from "./routes/ErrorPage";
 import {
   Authentication,
   CategoryList,
+  Checkout,
+  MyOrderDetail,
+  MyOrders,
+  OrderDetail,
+  OrderList,
   CreateCategory,
   CreateProduct,
   EditCategory,
@@ -24,7 +29,6 @@ import {
   ProductList,
   Profile,
   PurChase,
-  Register,
   ReviewPurchase,
   RootDefault,
   UpdateProfile,
@@ -32,7 +36,7 @@ import {
 
 function App() {
   const [themeContext, setTheme] = useState<SiderTheme>(
-    localStorage.getItem("theme") as SiderTheme
+    (localStorage.getItem("theme") as SiderTheme) || "light"
   );
   const user = useAppSelector((state) => state.auth.login.currentUser);
   const role: any = user?.user?.role;
@@ -94,11 +98,21 @@ function App() {
           element: <ReviewPurchase />,
           errorElement: <ErrorPage />,
         },
+        {
+          path: "/order",
+          element: <OrderList />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/order/:id",
+          element: <OrderDetail />,
+          errorElement: <ErrorPage />,
+        },
       ],
     },
     {
       path: "/auth/register",
-      element: <Register />,
+      element: <Authentication />,
       errorElement: <ErrorPage />,
     },
     {
@@ -132,6 +146,21 @@ function App() {
         {
           path: "/profile/update",
           element: <UpdateProfile />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/checkout",
+          element: <Checkout />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/orders",
+          element: <MyOrders />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/orders/:id",
+          element: <MyOrderDetail />,
           errorElement: <ErrorPage />,
         },
       ],

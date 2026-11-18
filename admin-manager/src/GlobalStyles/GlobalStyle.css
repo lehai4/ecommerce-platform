@@ -1,3 +1,9 @@
-.ant-table {
-  font-size: 16px !important;
+.app-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card .ant-card-cover img {
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }

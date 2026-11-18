@@ -1,225 +1,204 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
-import TableList from "@/components/TableList";
-import LinearLoading from "@/components/loading/linear";
+import PageHeader from "@/components/PageHeader";
+import { useResponsiveColumns } from "@/components/TableList";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { getAllCategory } from "@/redux/api";
-import { Category, DataTypeCategory } from "@/type";
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { apiErrorMessage } from "@/lib/apiError";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  FolderOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import {
   Button,
+  Card,
   Input,
   Popconfirm,
-  PopconfirmProps,
   Space,
+  Table,
   TableColumnsType,
+  Tooltip,
   Typography,
-  message,
 } from "antd";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useDebouncedCallback } from "use-debounce";
+import { useDebounce } from "use-debounce";
+
+const PAGE_SIZE = 10;
+
+type CategoryRow = {
+  id: string;
+  name: string;
+  _count?: { products: number };
+};
 
 const CategoryList = () => {
   const user = useAppSelector((state) => state.auth.login.currentUser);
-
   const axiosAuth = AxiosJWTInstance({ user });
-  const [query, setQuery] = useState<string>("");
+
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [page, setPage] = useState(1);
-  const [idDelete, setIdDelete] = useState<string>("");
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [search] = useDebounce(query.trim(), 400);
 
-  const [category, setCategory] = useState<Category[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-
-  const [isHasMore, setIsHasMore] = useState<boolean>(true);
-
-  const confirm: PopconfirmProps["onConfirm"] = async () => {
+  const fetchPage = async (pageToLoad: number) => {
+    setLoading(true);
     try {
-      await axiosAuth({
-        method: "DELETE",
-        url: `/category/${idDelete}`,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.accessToken}`,
+      const { data } = await axiosAuth.get<CategoryRow[]>("/category", {
+        params: {
+          page: pageToLoad,
+          offset: PAGE_SIZE,
+          categoryName: search || undefined,
         },
       });
-      const category = await getAllCategory();
-      setCategory(category);
-      toast.success("Delete successfully!");
-    } catch (e) {
-      toast.error("Delete Failed!");
+      setCategories((prev) => (pageToLoad === 1 ? data : [...prev, ...data]));
+      setHasMore(data.length === PAGE_SIZE);
+      setPage(pageToLoad);
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const cancel: PopconfirmProps["onCancel"] = () => {
-    message.error("No Delete");
+  useEffect(() => {
+    fetchPage(1);
+  }, [search]);
+
+  const onDelete = async (category: CategoryRow) => {
+    try {
+      await axiosAuth.delete(`/category/${category.id}`);
+      setCategories((prev) => prev.filter((c) => c.id !== category.id));
+      toast.success(`"${category.name}" deleted`);
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    }
   };
 
-  const columns: TableColumnsType<DataTypeCategory> = [
+  const baseColumns: TableColumnsType<CategoryRow> = [
     {
-      title: "Id",
-      dataIndex: "id",
-      render: (id: string) => (
-        <Typography.Text className="text-[16px]">{id}</Typography.Text>
-      ),
-    },
-    {
-      title: "Name",
+      title: "Category",
       dataIndex: "name",
-      render: (name: string) => (
-        <Typography.Text className="text-[16px]">{name}</Typography.Text>
+      render: (name: string, category) => (
+        <Link
+          to={`/category/edit/${category.name}`}
+          className="flex items-center gap-3 min-w-[200px]"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+            <FolderOutlined />
+          </span>
+          <Typography.Text strong className="!text-inherit">
+            {name}
+          </Typography.Text>
+        </Link>
       ),
     },
-
     {
-      title: "Action",
-      dataIndex: "",
-      key: "x",
-      render: (e: DataTypeCategory) => (
-        <Space className="gap-4">
-          <Link to={`/category/edit/${e.name}`}>
-            <Button type="primary" icon={<EditOutlined />} size="large">
-              Edit
-            </Button>
-          </Link>
+      title: "Products",
+      key: "products",
+      align: "right",
+      width: 140,
+      render: (_, category) => {
+        const count = category._count?.products ?? 0;
+        return (
+          <Typography.Text type={count ? undefined : "secondary"}>
+            {count} {count === 1 ? "product" : "products"}
+          </Typography.Text>
+        );
+      },
+    },
+    {
+      title: "",
+      key: "actions",
+      align: "right",
+      fixed: "right",
+      width: 110,
+      render: (_, category) => (
+        <Space size={4}>
+          <Tooltip title="Edit">
+            <Link to={`/category/edit/${category.name}`}>
+              <Button type="text" icon={<EditOutlined />} aria-label="Edit" />
+            </Link>
+          </Tooltip>
           <Popconfirm
-            title="Delete"
-            description={`You are sure delete "${e.name}" ?`}
-            onConfirm={confirm}
-            onCancel={cancel}
-            okText="Yes"
-            cancelText="No"
-            style={{ width: 550 }}
+            title="Delete category"
+            description={
+              category._count?.products
+                ? `"${category.name}" has ${category._count.products} product(s). They will stay but lose this category.`
+                : `Delete "${category.name}"?`
+            }
+            onConfirm={() => onDelete(category)}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
           >
-            <Button
-              danger
-              size="large"
-              icon={<DeleteOutlined />}
-              onClick={() => setIdDelete(e.id)}
-            >
-              Delete
-            </Button>
+            <Tooltip title="Delete">
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                aria-label={`Delete ${category.name}`}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
     },
   ];
+  const columns = useResponsiveColumns(baseColumns);
 
-  const dataSource: any[] = category?.map((t) => {
-    return {
-      key: t.id,
-      id: t.id,
-      name: t.name,
-    };
-  });
-
-  const onScroll = (e: any) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
-
-    if (scrollTop + clientHeight === scrollHeight && isHasMore) {
-      setLoading(true);
-      setPage((prev) => prev + 1);
-    }
-  };
-
-  const handleChangeInputSearch = useDebouncedCallback(async () => {
-    const res = await axiosAuth({
-      method: "GET",
-      url: `/category${query ? `?categoryName=${query}` : ""}`,
-      headers: {
-        Authorization: `Berear ${user?.accessToken}`,
-      },
-    });
-    if (res.data.length > 0) {
-      Array.isArray(res.data)
-        ? setCategory([...res.data])
-        : setCategory([{ id: res.data.id, name: res.data.name }]);
-      toast.success("Search category is found");
-    } else {
-      setCategory([]);
-      toast.info("No results found!");
-    }
-  }, 1000);
-
-  useEffect(() => {
-    setTimeout(async () => {
-      await axiosAuth({
-        method: "GET",
-        url: `/category?page=${page}&offset=10`,
-        headers: {
-          Authorization: `Bearer ${user?.accessToken}`,
-        },
-      })
-        .then((response) => {
-          response.data.length === 0
-            ? setIsHasMore(false)
-            : setCategory([...category, ...response.data]);
-          setLoading(false);
-        })
-        .catch((error) => {
-          toast.error(error.message);
-        });
-    }, 3000);
-  }, [page]);
-
-  useEffect(() => {
-    (async () => {
-      await axiosAuth({
-        method: "GET",
-        url: `/category`,
-        headers: {
-          Authorization: `Bearer ${user?.accessToken}`,
-        },
-      })
-        .then((response) => {
-          setCategory(response.data);
-        })
-        .catch((error) => {
-          toast.error(error.message);
-        });
-    })();
-  }, []);
   return (
     <>
-      <Helmet title="CategoryList">
+      <Helmet title="Categories">
         <></>
       </Helmet>
-      <div className="py-[20px] px-[30px]">
-        <h1 className="text-[32px] font-semibold">Category List</h1>
-        <Space direction="horizontal" className="py-[20px] flex flex-row gap-5">
-          <Space className="gap-5">
-            <form method="get" action="/category">
-              <Input.Search
-                className="flex py-[20px]"
-                placeholder="Search category..."
-                size="large"
-                type="search"
-                name="categoryName"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  e.preventDefault();
-                  handleChangeInputSearch();
-                }}
-              />
-            </form>
-            <Link to="create">
-              <Button type="primary" className="bg-blue-500" size="large">
-                Create Category
-              </Button>
-            </Link>
-          </Space>
-        </Space>
-        <div className="py-[25px]">
-          <TableList
-            columns={columns}
-            dataSource={dataSource}
-            handleScroll={onScroll}
+      <PageHeader
+        title="Categories"
+        description="Group products so customers can find them faster."
+        extra={
+          <Link to="create">
+            <Button type="primary" icon={<PlusOutlined />}>
+              New category
+            </Button>
+          </Link>
+        }
+      />
+      <Card>
+        <div className="mb-4 max-w-sm">
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="Search categories..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          {loading && <LinearLoading />}
         </div>
-      </div>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={categories}
+          loading={loading && categories.length === 0}
+          pagination={false}
+          scroll={{ x: "max-content" }}
+          size="middle"
+          locale={{
+            emptyText: search
+              ? "No categories match your search"
+              : "No categories yet",
+          }}
+        />
+        {hasMore && (
+          <div className="mt-4 flex justify-center">
+            <Button loading={loading} onClick={() => fetchPage(page + 1)}>
+              Load more
+            </Button>
+          </div>
+        )}
+      </Card>
     </>
   );
 };

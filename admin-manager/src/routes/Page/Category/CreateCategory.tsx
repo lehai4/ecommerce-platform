@@ -1,9 +1,9 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
+import PageHeader from "@/components/PageHeader";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Form, Input, type FormProps } from "antd";
-import { Link, useNavigate } from "react-router-dom";
+import { Button, Card, Form, Input, Space, type FormProps } from "antd";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 type FieldType = {
   name?: string;
@@ -32,52 +32,41 @@ const CreateCategory = () => {
   };
 
   return (
-    <div className="h-full flex flex-col items-center justify-center">
+    <>
       <Helmet title="CreateCategory">
         <></>
       </Helmet>
-      <div className="w-full flex flex-row items-center justify-between py-[20px]">
-        <Link to="/category">
-          <Button size="large" icon={<ArrowLeftOutlined />}>
-            Back
-          </Button>
-        </Link>
-      </div>
-      <h1 className="text-[40px] font-bold pt-[20px] pb-[30px]">Form Create</h1>
-      <Form
-        name="basic"
-        labelCol={{ span: 8 }}
-        style={{ width: "50%", padding: "0 40px", margin: "0 45px" }}
-        initialValues={{ remember: true }}
-        onFinish={onFinish}
-        autoComplete="off"
-        className="flex flex-col gap-5 justify-center"
-      >
-        <div className="flex justify-center items-center gap-[50px]">
+      <PageHeader
+        title="New category"
+        description="Add a category to group your products."
+        backTo="/category"
+      />
+      <Card className="max-w-2xl">
+        <Form
+          name="create-category"
+          layout="vertical"
+          requiredMark="optional"
+          onFinish={onFinish}
+          autoComplete="off"
+        >
           <Form.Item<FieldType>
             name="name"
-            rules={[{ required: true }, { message: "Please input category!" }]}
-            className="w-full"
+            label="Category name"
+            rules={[{ required: true, message: "Please input category!" }]}
           >
-            <Input size="large" placeholder="Name..." />
+            <Input size="large" placeholder="e.g. Electronics" />
           </Form.Item>
-        </div>
-
-        <Form.Item className="flex items-center justify-center ">
-          <Button htmlType="reset" className="mx-2" size="large">
-            Reset
-          </Button>
-          <Button
-            type="primary"
-            htmlType="submit"
-            className="mx-2"
-            size="large"
-          >
-            Create
-          </Button>
-        </Form.Item>
-      </Form>
-    </div>
+          <div className="flex justify-end">
+            <Space>
+              <Button htmlType="reset">Reset</Button>
+              <Button type="primary" htmlType="submit">
+                Create category
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      </Card>
+    </>
   );
 };
 

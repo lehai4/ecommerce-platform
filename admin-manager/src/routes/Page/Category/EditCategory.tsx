@@ -1,12 +1,13 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
+import PageHeader from "@/components/PageHeader";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { getCategoryByName } from "@/redux/api";
 import { Category } from "@/type";
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Form, Input, type FormProps } from "antd";
+
+import { Button, Card, Form, Input, Space, type FormProps } from "antd";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 type FieldType = {
@@ -64,51 +65,41 @@ const EditCategory = () => {
   }, []);
 
   return (
-    <div className="px-[40px] h-full flex flex-col items-center justify-center">
+    <>
       <Helmet title="EditCategory">
         <></>
       </Helmet>
-      <div className="w-full flex flex-row items-center justify-between py-[20px]">
-        <Link to="/category">
-          <Button size="large" icon={<ArrowLeftOutlined />}>
-            Back
-          </Button>
-        </Link>
-      </div>
-      <h1 className="text-[40px] font-bold pt-[20px] pb-[30px]">Form Edit</h1>
-      <Form
-        labelCol={{ span: 8 }}
-        style={{ width: "100%", margin: "0 45px" }}
-        initialValues={{ category }}
-        onFinish={onFinish}
-        form={form}
-        className="flex flex-col gap-5 justify-center"
-      >
-        <div className="flex justify-center items-center gap-[50px]">
+      <PageHeader
+        title="Edit category"
+        description={category?.name}
+        backTo="/category"
+      />
+      <Card className="max-w-2xl">
+        <Form
+          layout="vertical"
+          requiredMark="optional"
+          initialValues={{ category }}
+          onFinish={onFinish}
+          form={form}
+        >
           <Form.Item<FieldType>
             name="name"
-            rules={[{ required: true }, { message: "Please input category!" }]}
-            className="w-full"
+            label="Category name"
+            rules={[{ required: true, message: "Please input category!" }]}
           >
-            <Input size="large" placeholder="Category name..." />
+            <Input size="large" placeholder="Category name" />
           </Form.Item>
-        </div>
-
-        <Form.Item className="flex items-center justify-center ">
-          <Button htmlType="reset" className="mx-2" size="large">
-            Reset
-          </Button>
-          <Button
-            type="primary"
-            htmlType="submit"
-            className="mx-2"
-            size="large"
-          >
-            Edit
-          </Button>
-        </Form.Item>
-      </Form>
-    </div>
+          <div className="flex justify-end">
+            <Space>
+              <Button onClick={onFill}>Reset</Button>
+              <Button type="primary" htmlType="submit">
+                Save changes
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      </Card>
+    </>
   );
 };
 

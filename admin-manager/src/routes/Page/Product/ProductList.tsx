@@ -1,387 +1,269 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
-import TableList from "@/components/TableList";
-import LinearLoading from "@/components/loading/linear";
+import PageHeader from "@/components/PageHeader";
+import { useResponsiveColumns } from "@/components/TableList";
+import ProductPictureModal from "@/components/product/ProductPictureModal";
+import { formatMoney } from "@/constants/order";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { getProduct } from "@/redux/api";
-import { DataType, ProductProps } from "@/type";
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { apiErrorMessage } from "@/lib/apiError";
+import { pictureUrl } from "@/lib/image";
+import { ProductProps } from "@/type";
+import {
+  CameraOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import {
   Button,
+  Card,
   Image,
   Input,
-  Modal,
   Popconfirm,
-  PopconfirmProps,
   Space,
+  Table,
   TableColumnsType,
+  Tag,
+  Tooltip,
   Typography,
-  message,
 } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useDebouncedCallback } from "use-debounce";
+import { useDebounce } from "use-debounce";
+
+const PAGE_SIZE = 10;
+const LOW_STOCK = 5;
+
 const ProductList = () => {
   const user = useAppSelector((state) => state.auth.login.currentUser);
   const axiosAuth = AxiosJWTInstance({ user });
 
-  const inputFile = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState<string>("");
-  const [image, setImage] = useState<any>(null);
-  const [id, setId] = useState<string>("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [idDelete, setIdDelete] = useState<string>("");
-
   const [products, setProducts] = useState<ProductProps[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [isHasMore, setIsHasMore] = useState<boolean>(true);
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [search] = useDebounce(query.trim(), 400);
+  const [pictureFor, setPictureFor] = useState<ProductProps>();
 
-  const confirm: PopconfirmProps["onConfirm"] = async () => {
+  const fetchPage = async (pageToLoad: number) => {
+    setLoading(true);
     try {
-      await axiosAuth({
-        method: "DELETE",
-        url: `/product/${idDelete}`,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.accessToken}`,
+      const { data } = await axiosAuth.get<ProductProps[]>("/product", {
+        params: {
+          page: pageToLoad,
+          offset: PAGE_SIZE,
+          productName: search || undefined,
         },
-      })
-        .then(async () => {
-          const product = await getProduct();
-          setProducts(product);
-          toast.success("Delete successfully!");
-        })
-        .catch((err) => {
-          toast.error(err.message);
-        });
-    } catch (e) {
-      toast.error("Delete Failed!");
+      });
+      setProducts((prev) => (pageToLoad === 1 ? data : [...prev, ...data]));
+      setHasMore(data.length === PAGE_SIZE);
+      setPage(pageToLoad);
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const cancel: PopconfirmProps["onCancel"] = () => {
-    message.error("No Delete");
+  useEffect(() => {
+    fetchPage(1);
+  }, [search]);
+
+  const onDelete = async (product: ProductProps) => {
+    try {
+      await axiosAuth.delete(`/product/${product.id}`);
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+      toast.success(`"${product.name}" deleted`);
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    }
   };
 
-  const columns: TableColumnsType<DataType> = [
+  const baseColumns: TableColumnsType<ProductProps> = [
     {
-      title: "Picture",
-      render: (e: DataType) => (
-        <Image
-          src={
-            e.picture
-              ? `http://${e.picture}`
-              : "https://st4.depositphotos.com/2495409/19919/i/450/depositphotos_199193024-stock-photo-new-product-concept-illustration-isolated.jpg"
-          }
-          alt="picture"
-          width={60}
-          height={60}
-          preview={false}
-          onClick={() => {
-            setModalOpen(true);
-            setId(e.id);
-          }}
-          className="w-[60px] h-[60px]"
-        />
+      title: "Product",
+      key: "product",
+      render: (_, product) => (
+        <div className="flex items-center gap-3 min-w-[240px]">
+          <Tooltip title="Change picture">
+            <button
+              type="button"
+              className="group relative shrink-0 overflow-hidden rounded-lg border border-black/5"
+              onClick={() => setPictureFor(product)}
+            >
+              <Image
+                src={pictureUrl(product.picture, 52)}
+                alt={product.name}
+                width={52}
+                height={52}
+                preview={false}
+                className="object-cover"
+              />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                <CameraOutlined />
+              </span>
+            </button>
+          </Tooltip>
+          <div className="min-w-0">
+            <Link to={`/product-list/edit/${product.urlName}`}>
+              <Typography.Text strong className="block !text-inherit hover:!text-indigo-600">
+                {product.name}
+              </Typography.Text>
+            </Link>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {product.categories?.length ? (
+                product.categories.map((c) => (
+                  <Tag key={c.id ?? c.name} className="!mr-0" bordered={false}>
+                    {c.name}
+                  </Tag>
+                ))
+              ) : (
+                <Typography.Text type="secondary" className="text-xs">
+                  No category
+                </Typography.Text>
+              )}
+            </div>
+          </div>
+        </div>
       ),
     },
     {
-      title: "Id",
-      dataIndex: "id",
-      render: (id: string) => (
-        <Typography.Text className="text-[16px]">{id}</Typography.Text>
-      ),
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      render: (name: string) => (
-        <Typography.Text className="text-[16px]">{name}</Typography.Text>
-      ),
-    },
-    {
-      title: "PriceBase",
-      dataIndex: "priceBase",
-      render: (priceBase: string) => (
-        <Typography.Text className="text-[16px]">{priceBase}</Typography.Text>
-      ),
-      width: 110,
+      title: "Price",
+      key: "price",
+      align: "right",
+      width: 140,
+      render: (_, product) => {
+        const base = Number(product.basePrice);
+        const discount = Number(product.discountPercentage) || 0;
+        if (!discount) return formatMoney(base);
+        return (
+          <div className="flex flex-col items-end">
+            <Typography.Text strong>
+              {formatMoney(base * (1 - discount / 100))}
+            </Typography.Text>
+            <span className="flex items-center gap-1">
+              <Typography.Text type="secondary" delete className="text-xs">
+                {formatMoney(base)}
+              </Typography.Text>
+              <Tag color="green" bordered={false} className="!mr-0 text-xs">
+                -{discount}%
+              </Tag>
+            </span>
+          </div>
+        );
+      },
     },
     {
       title: "Stock",
       dataIndex: "stock",
-      render: (stock: number) => (
-        <Typography.Text className="text-[16px]">{stock}</Typography.Text>
-      ),
-      width: 80,
+      align: "right",
+      width: 120,
+      render: (stock: number) =>
+        stock <= 0 ? (
+          <Tag color="red" bordered={false} className="!mr-0">
+            Out of stock
+          </Tag>
+        ) : stock <= LOW_STOCK ? (
+          <Tag color="orange" bordered={false} className="!mr-0">
+            {stock} left
+          </Tag>
+        ) : (
+          <Typography.Text>{stock}</Typography.Text>
+        ),
     },
     {
-      title: "DiscountPercentage",
-      dataIndex: "discountPercentage",
-      render: (discountPercentage: number) => (
-        <Typography.Text className="text-[16px]">
-          {discountPercentage}
-        </Typography.Text>
-      ),
-      width: 180,
-    },
-    {
-      title: "Action",
-      dataIndex: "",
-      key: "x",
-      render: (e: DataType) => (
-        <Space className="gap-4">
-          <Link to={`/product-list/edit/${e.urlName}`}>
-            <Button type="primary" icon={<EditOutlined />} size="large">
-              Edit
-            </Button>
-          </Link>
+      title: "",
+      key: "actions",
+      align: "right",
+      fixed: "right",
+      width: 110,
+      render: (_, product) => (
+        <Space size={4}>
+          <Tooltip title="Edit">
+            <Link to={`/product-list/edit/${product.urlName}`}>
+              <Button type="text" icon={<EditOutlined />} aria-label="Edit" />
+            </Link>
+          </Tooltip>
           <Popconfirm
-            title="Delete"
-            description={`You are sure delete "${e.name}" ?`}
-            onConfirm={confirm}
-            onCancel={cancel}
-            okText="Yes"
-            cancelText="No"
+            title="Delete product"
+            description={`Delete "${product.name}"? This cannot be undone.`}
+            onConfirm={() => onDelete(product)}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
           >
-            <Button
-              danger
-              size="large"
-              icon={<DeleteOutlined />}
-              onClick={() => setIdDelete(e.id)}
-            >
-              Delete
-            </Button>
+            <Tooltip title="Delete">
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                aria-label={`Delete ${product.name}`}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
     },
   ];
-
-  const dataSource: any[] = products?.map((t) => {
-    return {
-      key: t.id,
-      id: t.id,
-      name: t.name,
-      picture: t.picture,
-      priceBase: t.basePrice,
-      stock: t.stock,
-      urlName: t.urlName,
-      discountPercentage: t.discountPercentage,
-    };
-  });
-
-  const handleChangeImage = (event: any) => {
-    const file = event.target.files?.[0];
-    if (file.size > 3 * 1024 * 1024) {
-      alert("Kích thước ảnh vượt quá 3MB.");
-      return;
-    } else {
-      setImage(file);
-    }
-  };
-
-  const onUpload = async () => {
-    if (!image) {
-      toast.error("Please choose image for upload");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", image);
-
-    await axiosAuth({
-      url: `/product/picture/${id}`,
-      method: "PATCH",
-      headers: {
-        "Content-type": "application/x-www-form-urlencoded",
-        Authorization: `Bearer ${user?.accessToken}`,
-      },
-      data: formData,
-    })
-      .then(async () => {
-        setModalOpen(false);
-        toast.success("Change image successfully");
-        await axiosAuth({
-          method: "GET",
-          url: `/product`,
-          headers: {
-            Authorization: `Berear ${user?.accessToken}`,
-          },
-        })
-          .then((response) => {
-            setProducts(response.data);
-          })
-          .catch((error) => {
-            toast.error(error.message);
-          });
-      })
-      .catch((error) => {
-        toast.error(error.message);
-      });
-    if (inputFile.current) {
-      inputFile.current.value = "";
-    }
-    setImage(null);
-  };
-
-  const onScroll = (e: any) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
-
-    if (scrollTop + clientHeight === scrollHeight && isHasMore) {
-      setLoading(true);
-      setPage((prev) => prev + 1);
-    }
-  };
-
-  const handleChangeInputSearch = useDebouncedCallback(async () => {
-    const res = await axiosAuth({
-      method: "GET",
-      url: `/product${query ? `?productName=${query}` : ""}`,
-      headers: {
-        Authorization: `Bearer ${user?.accessToken}`,
-      },
-    });
-    if (res.data.length > 0) {
-      setProducts(res.data);
-      toast.info("results found!");
-    } else {
-      setProducts([]);
-      toast.info("No results found!");
-    }
-  }, 1000);
-
-  useEffect(() => {
-    setTimeout(async () => {
-      await axiosAuth({
-        method: "GET",
-        url: `/product?page=${page}&offset=10`,
-        headers: {
-          Authorization: `Bearer ${user?.accessToken}`,
-        },
-      })
-        .then((response) => {
-          response.data.length === 0
-            ? setIsHasMore(false)
-            : setProducts([...products, ...response.data]);
-          setLoading(false);
-        })
-        .catch((error) => {
-          toast.error(error.message);
-        });
-    }, 3000);
-  }, [page]);
-
-  useEffect(() => {
-    (async () => {
-      await axiosAuth({
-        method: "GET",
-        url: `/product`,
-        headers: {
-          Authorization: `Bearer ${user?.accessToken}`,
-        },
-      })
-        .then((response) => {
-          setProducts(response.data);
-        })
-        .catch((error) => {
-          toast.error(error.message);
-        });
-    })();
-  }, []);
+  const columns = useResponsiveColumns(baseColumns);
 
   return (
     <>
-      <Helmet title="ProductList">
+      <Helmet title="Products">
         <></>
       </Helmet>
-      <div className="py-[20px] px-[30px] h-[100%]">
-        <h1 className="text-[32px] font-semibold">Product List</h1>
-        <Space direction="horizontal" className="py-[20px] flex flex-row gap-5">
-          <Space className="gap-5">
-            <form>
-              <Input.Search
-                className="flex py-[20px]"
-                placeholder="Search product..."
-                size="large"
-                type="search"
-                name="productName"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  e.preventDefault();
-                  handleChangeInputSearch();
-                }}
-              />
-            </form>
-            <Link to="create">
-              <Button type="primary" className="bg-blue-500" size="large">
-                Create Product
-              </Button>
-            </Link>
-          </Space>
-        </Space>
-        <div className="py-[25px]">
-          <TableList
-            columns={columns}
-            dataSource={dataSource}
-            handleScroll={onScroll}
+      <PageHeader
+        title="Products"
+        description="Manage your catalogue, prices and stock."
+        extra={
+          <Link to="create">
+            <Button type="primary" icon={<PlusOutlined />}>
+              New product
+            </Button>
+          </Link>
+        }
+      />
+      <Card>
+        <div className="mb-4 max-w-sm">
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="Search products..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          {loading && <LinearLoading />}
         </div>
-        <Modal
-          title="Change Picture of product"
-          centered
-          open={modalOpen}
-          okText="Upload"
-          onOk={onUpload}
-          onCancel={() => {
-            if (inputFile.current) {
-              inputFile.current.value = "";
-            }
-            setImage(null);
-            setModalOpen(false);
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={products}
+          loading={loading && products.length === 0}
+          pagination={false}
+          scroll={{ x: "max-content" }}
+          size="middle"
+          locale={{
+            emptyText: search ? "No products match your search" : "No products yet",
           }}
-        >
-          <Space direction="vertical">
-            <input
-              accept="image/*"
-              onClick={() => {
-                if (inputFile.current) {
-                  inputFile.current.value = "";
-                }
-              }}
-              type="file"
-              ref={inputFile}
-              onChange={handleChangeImage}
-            />
-            <Space direction="vertical" className="mt-[20px]">
-              {image && (
-                <>
-                  <Image
-                    src={URL.createObjectURL(image)}
-                    width={"100%"}
-                    height={"100%"}
-                  />
-                  <Button
-                    onClick={() => {
-                      setImage(null);
-                      if (inputFile.current) {
-                        inputFile.current.value = "";
-                      }
-                    }}
-                    danger
-                  >
-                    Delete Image
-                  </Button>
-                </>
-              )}
-            </Space>
-          </Space>
-        </Modal>
-      </div>
+        />
+        {hasMore && (
+          <div className="mt-4 flex justify-center">
+            <Button loading={loading} onClick={() => fetchPage(page + 1)}>
+              Load more
+            </Button>
+          </div>
+        )}
+      </Card>
+      <ProductPictureModal
+        product={pictureFor}
+        onClose={() => setPictureFor(undefined)}
+        onUploaded={(updated) =>
+          setProducts((prev) =>
+            prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+          )
+        }
+      />
     </>
   );
 };

@@ -1,12 +1,21 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
+import PageHeader from "@/components/PageHeader";
 import { useAppDispatch, useAppSelector } from "@/hook/useHookRedux";
 import { signOut } from "@/redux/api";
-import { Button, Form, FormProps, Input, Space, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Divider,
+  Form,
+  FormProps,
+  Input,
+  Space,
+  Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeftOutlined } from "@ant-design/icons";
 
 interface FieldType {
   name: string;
@@ -20,7 +29,6 @@ const UpdateProfile = () => {
   const dispath = useAppDispatch();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.login.currentUser);
-  const role: any = user?.user?.role;
 
   const axiosAuth = AxiosJWTInstance({ user });
 
@@ -64,128 +72,94 @@ const UpdateProfile = () => {
   }, [profile]);
 
   useEffect(() => {
-    return () => {
-      (async function getProfileUser() {
-        await axiosAuth({
-          method: "GET",
-          url: "/user",
-          headers: {
-            Authorization: `Bearer ${user?.accessToken}`,
-          },
-        })
-          .then((response) => {
-            setProfile(response.data);
-          })
-          .catch((error) => {
-            console.log(error);
-          });
-      })();
-    };
+    axiosAuth({
+      method: "GET",
+      url: "/user",
+      headers: {
+        Authorization: `Bearer ${user?.accessToken}`,
+      },
+    })
+      .then((response) => {
+        setProfile(response.data);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
   }, []);
+
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       <Helmet title="UpdateProfile">
         <></>
       </Helmet>
-      <div
-        className={`py-[20px] ${role === "ADMIN" ? "px-[30px]" : "mx-[35px]"}`}
-      >
-        <Space className=" py-[30px]">
-          <Button
-            onClick={() => navigate(-1)}
-            type="default"
-            size="large"
-            icon={<ArrowLeftOutlined />}
-          >
-            Back
-          </Button>
-        </Space>
-        <div className="border rounded-md">
-          <Typography.Text className="text-[32px] text-center block font-semibold py-[20px]">
-            Profile
-          </Typography.Text>
-          <div className="pt-[25px] pb-[40px] flex justify-center items-center">
-            <Form
-              labelCol={{ span: 8 }}
-              style={{ margin: "0 45px", width: "50%" }}
-              onFinish={onFinish}
-              form={form}
-              className="flex flex-col gap-5 justify-center"
+      <PageHeader
+        title="Edit profile"
+        description="You will be signed out after saving so you can sign in again."
+        backTo={-1}
+      />
+      <Card>
+        <Form
+          layout="vertical"
+          requiredMark="optional"
+          onFinish={onFinish}
+          form={form}
+        >
+          <Typography.Title level={5}>Personal information</Typography.Title>
+          <div className="grid gap-x-6 md:grid-cols-2">
+            <Form.Item<FieldType>
+              name="name"
+              label="Name"
+              rules={[{ required: true, message: "Please input your name!" }]}
             >
-              <div className="flex justify-center items-center gap-[50px]">
-                <Form.Item<FieldType>
-                  name="name"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your name!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input size="large" placeholder="Name..." />
-                </Form.Item>
-
-                <Form.Item<FieldType>
-                  name="email"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your email!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input size="large" type="string" placeholder="Email..." />
-                </Form.Item>
-              </div>
-              <div className="flex justify-center items-center gap-[50px]">
-                <Form.Item<FieldType>
-                  name="password"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your password!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input.Password
-                    size="large"
-                    type="password"
-                    placeholder="password..."
-                  />
-                </Form.Item>
-                <Form.Item<FieldType>
-                  name="currentPassword"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your currentPassword!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input.Password
-                    size="large"
-                    type="password"
-                    placeholder="currentPassword..."
-                  />
-                </Form.Item>
-              </div>
-              <Form.Item<FieldType>
-                name="address"
-                rules={[
-                  { required: true },
-                  { message: "Please input your address!" },
-                ]}
-                className="w-full"
-              >
-                <Input size="large" type="string" placeholder="Address..." />
-              </Form.Item>
-              <Button htmlType="reset" size="large">
-                Reset
-              </Button>
-              <Button type="primary" htmlType="submit" size="large">
-                Update
-              </Button>
-            </Form>
+              <Input size="large" placeholder="Full name" />
+            </Form.Item>
+            <Form.Item<FieldType>
+              name="email"
+              label="Email"
+              rules={[{ required: true, message: "Please input your email!" }]}
+            >
+              <Input size="large" placeholder="you@example.com" />
+            </Form.Item>
+            <Form.Item<FieldType>
+              name="address"
+              label="Address"
+              rules={[{ required: true, message: "Please input your address!" }]}
+              className="md:col-span-2"
+            >
+              <Input size="large" placeholder="Address" />
+            </Form.Item>
           </div>
-        </div>
-      </div>
-    </>
+          <Divider />
+          <Typography.Title level={5}>Password</Typography.Title>
+          <div className="grid gap-x-6 md:grid-cols-2">
+            <Form.Item<FieldType>
+              name="currentPassword"
+              label="Current password"
+              rules={[
+                { required: true, message: "Please input your currentPassword!" },
+              ]}
+            >
+              <Input.Password size="large" placeholder="Current password" />
+            </Form.Item>
+            <Form.Item<FieldType>
+              name="password"
+              label="New password"
+              rules={[{ required: true, message: "Please input your password!" }]}
+            >
+              <Input.Password size="large" placeholder="New password" />
+            </Form.Item>
+          </div>
+          <div className="flex justify-end">
+            <Space>
+              <Button onClick={onFill}>Reset</Button>
+              <Button type="primary" htmlType="submit">
+                Save changes
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      </Card>
+    </div>
   );
 };
 

@@ -22,3 +22,9 @@ export { default as UpdateProfile } from "./Page/Profile/UpdateProfile";
 
 export { default as PurChase } from "./Page/Purchase";
 export { default as ReviewPurchase } from "./Page/Purchase/ReviewPurchase";
+
+export { default as OrderList } from "./Page/Order/OrderList";
+export { default as OrderDetail } from "./Page/Order/OrderDetail";
+export { default as Checkout } from "./Page/Checkout";
+export { default as MyOrders } from "./Page/MyOrders";
+export { default as MyOrderDetail } from "./Page/MyOrders/MyOrderDetail";

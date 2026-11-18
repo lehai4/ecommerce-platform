@@ -1,13 +1,24 @@
+import { pictureUrl } from "@/lib/image";
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import InfiniteScroll from "@/components/InfiniteScroller";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { ProductProps } from "@/type";
-import { Divider, Image, Input, Select, Space, Typography } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import {
+  Card,
+  Divider,
+  Empty,
+  Input,
+  Select,
+  Spin,
+  Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useDebouncedCallback } from "use-debounce";
+
 const ProductDetail = () => {
   const user = useAppSelector((state) => state.auth.login.currentUser);
 
@@ -15,7 +26,7 @@ const ProductDetail = () => {
   const [query, setQuery] = useState<string>("");
   const [paginate, setPaginate] = useState<any>({
     value: "Show product per page",
-    label: "Show product per page",
+    label: "Per page",
   });
   const [products, setProducts] = useState<ProductProps[]>([]);
   const [page, setPage] = useState(1);
@@ -85,112 +96,110 @@ const ProductDetail = () => {
     })();
   }, [page]);
   return (
-    <div className="py-[20px] px-[30px]">
+    <>
       <Helmet title="ProductDetail">
         <></>
       </Helmet>
-      <div className="container">
-        <Space
-          direction="horizontal"
-          className="pb-[40px] sm:py-[20px] md:py-[20px] lg:py-[20px] xl:py-[20px] flex flex-row gap-5 -mx-[15px]"
-        >
-          <Space className="flex-wrap">
-            <form>
-              <Input.Search
-                className="flex flex-row items-center py-[20px]"
-                placeholder="Search product..."
-                size="large"
-                type="search"
-                name="productName"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  e.preventDefault();
-                  handleChangeInputSearch();
-                }}
-              />
-            </form>
-            <Select
-              style={{ width: "100%" }}
-              size="large"
-              allowClear
-              placeholder="Select paginate"
-              value={paginate}
-              onChange={(e) => setPaginate(e)}
-              options={[
-                {
-                  value: "Show product per page",
-                  label: "Show product per page",
-                },
-                { value: "6", label: "6" },
-                { value: "8", label: "8" },
-                { value: "12", label: "12" },
-              ]}
-            />
-          </Space>
-        </Space>
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <Typography.Title level={2} style={{ marginBottom: 4 }}>
+            Products
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            Browse our catalogue and add items to your cart.
+          </Typography.Text>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            allowClear
+            size="large"
+            prefix={<SearchOutlined />}
+            placeholder="Search products..."
+            name="productName"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              handleChangeInputSearch();
+            }}
+            className="sm:w-72"
+          />
+          <Select
+            size="large"
+            className="sm:w-44"
+            value={paginate}
+            onChange={(e) => setPaginate(e)}
+            options={[
+              {
+                value: "Show product per page",
+                label: "Per page",
+              },
+              { value: "6", label: "6 per page" },
+              { value: "8", label: "8 per page" },
+              { value: "12", label: "12 per page" },
+            ]}
+          />
+        </div>
       </div>
-      {/* Product Show */}
-      <div className="container">
-        <InfiniteScroll
-          loader={<p className="text-[16px]">Loading...</p>}
-          fetchMore={() => setPage((prev) => prev + 1)}
-          hasMore={isHasMore}
-          endMessage={<p>You have seen it all</p>}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 -mx-[15px] gap-[30px]">
-            {products.length > 0 ? (
-              products.map((item, i) => (
-                <div
-                  className="item-card border border-[0.5] rounded-md px-[15px] relative h-full"
-                  key={i}
-                >
-                  <Link
-                    to={`/product-detail/${item.urlName}`}
-                    className="flex flex-col h-full"
-                  >
-                    <div className="text-center p-[40px]">
-                      <Image
-                        preview={false}
-                        width={"100%"}
-                        height={"100%"}
-                        src={
-                          item.picture
-                            ? `http://${item.picture}`
-                            : "https://st4.depositphotos.com/2495409/19919/i/450/depositphotos_199193024-stock-photo-new-product-concept-illustration-isolated.jpg"
-                        }
-                        alt={item.name}
-                      />
-                    </div>
-                    <div className="content px-[30px] py-[25px] flex-1 flex flex-col justify-end">
-                      <div className="flex flex-row items-center justify-between my-[25px] gap-8">
-                        <Typography.Text className="font-semibold text-[20px] sm:truncate lg:truncate">
-                          {item.name}
-                        </Typography.Text>
-                        <Typography.Text className="font-semibold flex flex-row items-center text-[20px]">
-                          $ <span>{item.basePrice}</span>
-                        </Typography.Text>
-                      </div>
-                      <Typography.Paragraph
-                        className="text-[20px] font-[400] text-gray-500"
-                        ellipsis={{ rows: 1 }}
-                      >
-                        {item.description}
-                      </Typography.Paragraph>
-                    </div>
-                  </Link>
-                </div>
-              ))
-            ) : (
-              <Typography.Text className="text-red-500 px-[16px] text-[25px]">
-                No Data!!
-                <Divider />
-              </Typography.Text>
-            )}
+      <InfiniteScroll
+        loader={
+          <div className="flex justify-center py-8">
+            <Spin />
           </div>
-        </InfiniteScroll>
-      </div>
-    </div>
+        }
+        fetchMore={() => setPage((prev) => prev + 1)}
+        hasMore={isHasMore}
+        endMessage={
+          products.length > 0 ? (
+            <Divider plain>
+              <Typography.Text type="secondary">
+                You have seen all products
+              </Typography.Text>
+            </Divider>
+          ) : (
+            <></>
+          )
+        }
+      >
+        {products.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {products.map((item, i) => (
+              <Link to={`/product-detail/${item.urlName}`} key={i}>
+                <Card
+                  hoverable
+                  className="product-card h-full"
+                  cover={
+                    <img
+                      src={pictureUrl(item.picture, 280)}
+                      alt={item.name}
+                    />
+                  }
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <Typography.Text strong className="text-[16px]" ellipsis>
+                      {item.name}
+                    </Typography.Text>
+                    <Typography.Text strong className="!text-indigo-600 text-[16px] shrink-0">
+                      ${item.basePrice}
+                    </Typography.Text>
+                  </div>
+                  <Typography.Paragraph
+                    type="secondary"
+                    ellipsis={{ rows: 2 }}
+                    className="!mt-2 !mb-0"
+                  >
+                    {item.description}
+                  </Typography.Paragraph>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <Empty description="No products found" />
+          </Card>
+        )}
+      </InfiniteScroll>
+    </>
   );
 };
 

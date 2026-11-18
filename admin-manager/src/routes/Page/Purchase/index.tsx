@@ -1,17 +1,22 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
+import PageHeader from "@/components/PageHeader";
+import TableList from "@/components/TableList";
 import LinearLoading from "@/components/loading/linear";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { getAllPurchase } from "@/redux/api";
 import { DataTypePurchase } from "@/type";
-import { DeleteOutlined, EnvironmentOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EyeOutlined,
+} from "@ant-design/icons";
 import {
   Button,
-  Input,
+  Card,
   Popconfirm,
   PopconfirmProps,
   Space,
-  Table,
+  Tag,
   TableColumnsType,
   Typography,
   message,
@@ -19,13 +24,11 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useDebouncedCallback } from "use-debounce";
 
 const PurChase = () => {
   const user = useAppSelector((state) => state.auth.login.currentUser);
   const axiosAuth = AxiosJWTInstance({ user });
 
-  const [query, setQuery] = useState<string>("");
   const [page, setPage] = useState(1);
 
   const [idDelete, setIdDelete] = useState<string>("");
@@ -56,140 +59,139 @@ const PurChase = () => {
     message.error("No Delete");
   };
 
+  const renderId = (value: string) => (
+    <Typography.Text
+      type="secondary"
+      style={{ width: 140 }}
+      ellipsis={{ tooltip: value }}
+      copyable={{ text: value }}
+    >
+      {value}
+    </Typography.Text>
+  );
+
   const columns: TableColumnsType<DataTypePurchase> = [
     {
-      title: "Id",
+      title: "Order",
       dataIndex: "id",
-      render: (id: string) => (
-        <Typography.Text className="text-[16px]">{id}</Typography.Text>
-      ),
+      width: 170,
+      render: renderId,
     },
     {
-      title: "UserId",
-      dataIndex: "userId",
-      render: (userId: string) => (
-        <Typography.Text className="text-[16px]">{userId}</Typography.Text>
-      ),
-    },
-    {
-      title: "ProductId",
-      dataIndex: "productId",
-      render: (productId: string) => (
-        <Typography.Text className="text-[16px]">{productId}</Typography.Text>
-      ),
-    },
-    {
-      title: () => {
-        return (
-          <div className="w-max">
-            <span>Amount</span>
-          </div>
-        );
-      },
-      dataIndex: "amount",
-      render: (amount: string) => (
-        <Typography.Text className="text-[16px]">{amount}</Typography.Text>
-      ),
-      width: "100px",
-    },
-    {
-      title: () => {
-        return (
-          <div className="w-max">
-            <span>TotalPrice</span>
-          </div>
-        );
-      },
-      dataIndex: "totalPrice",
-      render: (totalPrice: string) => (
-        <Typography.Text className="text-[16px]">{totalPrice}</Typography.Text>
-      ),
-      width: "100px",
-    },
-    {
-      title: () => {
-        return (
-          <div className="w-max">
-            <span>ReviewNote</span>
-          </div>
-        );
-      },
-      dataIndex: "reviewNote",
-      render: (reviewNote: string) => (
-        <Typography.Text className="text-[16px] ">
-          {reviewNote !== null ? reviewNote : "No review"}
-        </Typography.Text>
-      ),
-      width: "inherit",
-    },
-    {
-      title: () => {
-        return (
-          <div className="w-max">
-            <span>ReviewComment</span>
-          </div>
-        );
-      },
-      dataIndex: "reviewComment",
-      render: (reviewComment: string) => (
-        <Typography.Text className="text-[16px]">
-          {reviewComment !== null ? reviewComment : "No Comment"}
-        </Typography.Text>
-      ),
-      width: "inherit",
-    },
-    {
-      title: "Date Create",
-      dataIndex: "createdAt",
-      render: (createdAt: string) => (
-        <Typography.Text className="text-[16px]">{createdAt}</Typography.Text>
-      ),
-    },
-    {
-      title: "User",
+      title: "Customer",
       dataIndex: "user",
-      render: (user: { email: string }) => (
-        <Typography.Text className="text-[16px]">{user.email}</Typography.Text>
+      render: (user: { email: string }, record) => (
+        <div className="min-w-[180px]">
+          <Typography.Text className="block">{user?.email}</Typography.Text>
+          <Typography.Text
+            type="secondary"
+            className="text-xs"
+            style={{ maxWidth: 160 }}
+            ellipsis={{ tooltip: record.userId }}
+          >
+            {record.userId}
+          </Typography.Text>
+        </div>
       ),
     },
     {
       title: "Product",
       dataIndex: "product",
-      render: (product: { name: string }) => (
-        <Typography.Text className="text-[16px]">
-          {product.name}
+      render: (product: { name: string }, record) => (
+        <div className="min-w-[160px]">
+          <Typography.Text strong className="block">
+            {product?.name}
+          </Typography.Text>
+          <Typography.Text
+            type="secondary"
+            className="text-xs"
+            style={{ maxWidth: 160 }}
+            ellipsis={{ tooltip: record.productId }}
+          >
+            {record.productId}
+          </Typography.Text>
+        </div>
+      ),
+    },
+    {
+      title: "Qty",
+      dataIndex: "amount",
+      align: "right",
+      width: 80,
+    },
+    {
+      title: "Total",
+      dataIndex: "totalPrice",
+      align: "right",
+      width: 120,
+      render: (totalPrice: string) => (
+        <Typography.Text strong>
+          {Number(totalPrice).toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+          })}
         </Typography.Text>
       ),
     },
     {
-      title: "Action",
+      title: "Review",
+      dataIndex: "reviewNote",
+      width: 200,
+      render: (reviewNote: string | null, record) =>
+        reviewNote !== null ? (
+          <div style={{ maxWidth: 200 }}>
+            <Tag color="gold">{reviewNote}</Tag>
+            {record.reviewComment && (
+              <Typography.Paragraph
+                type="secondary"
+                className="!mb-0 text-xs"
+                ellipsis={{ rows: 1, tooltip: record.reviewComment }}
+              >
+                {record.reviewComment}
+              </Typography.Paragraph>
+            )}
+          </div>
+        ) : (
+          <Typography.Text type="secondary">No review</Typography.Text>
+        ),
+    },
+    {
+      title: "Created",
+      dataIndex: "createdAt",
+      width: 170,
+      render: (createdAt: string) => (
+        <Typography.Text type="secondary">
+          {new Date(createdAt).toLocaleString()}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: "Actions",
       dataIndex: "",
       key: "x",
+      align: "right",
       fixed: "right",
+      width: 150,
       render: (e: DataTypePurchase) => (
-        <Space className="gap-4">
+        <Space>
           <Link to={`/purchase/${e.id}`}>
-            <Button type="primary" icon={<EnvironmentOutlined />} size="large">
-              Review
-            </Button>
+            <Button icon={<EyeOutlined />}>View</Button>
           </Link>
           <Popconfirm
-            title="Delete"
-            description={`You are sure delete "${e.id}" ?`}
+            title="Delete purchase"
+            description="Are you sure you want to delete this purchase?"
             onConfirm={confirm}
             onCancel={cancel}
-            okText="Yes"
-            cancelText="No"
-            style={{ width: 550 }}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            cancelText="Cancel"
           >
             <Button
               danger
-              size="large"
               icon={<DeleteOutlined />}
+              aria-label="Delete purchase"
               onClick={() => setIdDelete(e.id)}
-            >
-              Delete
-            </Button>
+            />
           </Popconfirm>
         </Space>
       ),
@@ -212,9 +214,6 @@ const PurChase = () => {
     };
   });
 
-  const handleChangeInputSearch = useDebouncedCallback(async () => {
-    toast.info("function is not working");
-  }, 1000);
 
   const onScroll = (e: any) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
@@ -251,49 +250,18 @@ const PurChase = () => {
       <Helmet title="PurchaseList">
         <></>
       </Helmet>
-      <div className="py-[20px] px-[30px]">
-        <h1 className="text-[32px] font-semibold">Purchase List</h1>
-        <Space direction="horizontal" className="py-[20px] flex flex-row gap-5">
-          <Space className="gap-5">
-            <form method="get" action="/purchase">
-              <Input.Search
-                className="flex py-[20px]"
-                placeholder="Search purchase..."
-                size="large"
-                type="search"
-                name="purchaseName"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  e.preventDefault();
-                  handleChangeInputSearch();
-                }}
-              />
-            </form>
-            <Button
-              type="primary"
-              className="bg-blue-500"
-              size="large"
-              onClick={() => {
-                toast.info("function is not working");
-              }}
-            >
-              Create Purchase
-            </Button>
-          </Space>
-        </Space>
-        <div className="py-[25px]">
-          <Table
-            dataSource={dataSource}
-            columns={columns}
-            pagination={false}
-            scroll={{ x: "max-content" }}
-            className="shadow-lg rounded"
-            onScroll={onScroll}
-          />
-          {loading && <LinearLoading />}
-        </div>
-      </div>
+      <PageHeader
+        title="Purchases"
+        description="Orders placed by customers and their reviews."
+      />
+      <Card>
+        <TableList
+          columns={columns}
+          dataSource={dataSource}
+          handleScroll={onScroll}
+        />
+        {loading && <LinearLoading />}
+      </Card>
     </>
   );
 };

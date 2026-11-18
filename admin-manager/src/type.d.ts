@@ -133,3 +133,69 @@ export interface Purchase {
     name: string;
   };
 }
+
+// ---------- Orders ----------
+export type OrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "SHIPPING"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export interface OrderItem {
+  id: string;
+  productId: string | null;
+  productName: string;
+  productPicture: string | null;
+  basePrice: string;
+  discountPercentage: number;
+  unitPrice: string;
+  quantity: number;
+  lineTotal: string;
+}
+
+export interface OrderStatusHistory {
+  id: string;
+  status: OrderStatus;
+  note: string | null;
+  changedById: string | null;
+  createdAt: string;
+}
+
+export interface Order {
+  id: string;
+  code: string;
+  userId: string | null;
+  status: OrderStatus;
+  customerName: string;
+  phone: string;
+  shippingAddress: string;
+  note: string | null;
+  subtotal: string;
+  discountTotal: string;
+  total: string;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItem[];
+  history: OrderStatusHistory[];
+  user?: { id: string; email: string; name: string | null } | null;
+}
+
+export interface OrderListItem
+  extends Omit<Order, "items" | "history" | "user"> {
+  user: { email: string } | null;
+  _count: { items: number };
+}
+
+export interface Paginated<T> {
+  data: T[];
+  total: number;
+  page: number;
+  offset: number;
+}
+
+export interface OrderStatusSummary {
+  status: OrderStatus;
+  count: number;
+  total: string;
+}

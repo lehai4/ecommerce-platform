@@ -1,21 +1,30 @@
+import { pictureUrl } from "@/lib/image";
 import Helmet from "@/components/Helmet";
 import { getProductByName } from "@/redux/api";
 import { ProductProps } from "@/type";
 import {
   Button,
+  Card,
   Divider,
   Image,
   InputNumber,
+  Skeleton,
   Space,
   Statistic,
+  Tag,
   Typography,
 } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import {
+  ArrowLeftOutlined,
+  ShoppingCartOutlined,
+  StarOutlined,
+} from "@ant-design/icons";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAppDispatch } from "@/hook/useHookRedux";
 import { AddToCart } from "@/redux/slice/cartSlice";
+
 
 const ProductDetailSlug = () => {
   const params = useParams();
@@ -50,125 +59,100 @@ const ProductDetailSlug = () => {
       mounted = false;
     };
   }, []);
+  const inStock = !!product?.stock && product.stock > 0;
+
   return (
-    <div className="container h-full">
-      <Helmet title={`ProductDetail-${product?.name}`}>
-        <div></div>
+    <>
+      <Helmet title={`ProductDetail-${product?.name ?? ""}`}>
+        <></>
       </Helmet>
-
-      <div className=" h-full flex flex-col justify-center ">
-        <Space className="py-[45px] ">
-          <Button
-            onClick={() => navigate(-1)}
-            type="default"
-            size="large"
-            icon={<ArrowLeftOutlined />}
-          >
-            Back Home
-          </Button>
-        </Space>
-        <div className="grid grid-cols-2 -mx-[15px]">
-          <div className="image px-[15px]">
-            <Image
-              preview={false}
-              width={"100%"}
-              height={"100%"}
-              src={
-                product?.picture
-                  ? `http://${product?.picture}`
-                  : "https://st4.depositphotos.com/2495409/19919/i/450/depositphotos_199193024-stock-photo-new-product-concept-illustration-isolated.jpg"
-              }
-              alt={product?.name}
-            />
-          </div>
-          <div className="content px-[15px]">
-            <div className="flex flex-col h-full justify-center pr-[40px]">
-              <Typography.Text className="text-[30px] font-[700] my-[20px] tracking-wide">
-                {product?.name}
-              </Typography.Text>
-              <Space className="flex flex-row items-center my-[20px]">
-                <span className="text-[24px] font-[700] text-blue-700">$</span>
-                <Statistic
-                  value={product?.basePrice}
-                  precision={2}
-                  valueStyle={{ fontSize: 24, color: "#384aeb" }}
-                  className="font-[700]"
-                />
+      <Button
+        type="link"
+        icon={<ArrowLeftOutlined />}
+        onClick={() => navigate(-1)}
+        className="!px-0 mb-4"
+      >
+        Back to products
+      </Button>
+      {!product ? (
+        <Card>
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </Card>
+      ) : (
+        <Card>
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="overflow-hidden rounded-xl bg-slate-50">
+              <Image
+                width="100%"
+                src={pictureUrl(product.picture, 600)}
+                alt={product.name}
+                className="aspect-square object-cover"
+              />
+            </div>
+            <div className="flex flex-col">
+              <Space size={[8, 8]} wrap className="mb-3">
+                {product.categories && product.categories.length > 0 ? (
+                  product.categories.map((item, i) => (
+                    <Tag key={i} color="geekblue">
+                      {item.name}
+                    </Tag>
+                  ))
+                ) : (
+                  <Tag>No category</Tag>
+                )}
+                <Tag color={inStock ? "green" : "red"}>
+                  {inStock ? "In stock" : "Out of stock"}
+                </Tag>
               </Space>
-
-              <Space direction="vertical" align="start">
-                <Space>
-                  <Typography.Text className="flex flex-row items-center gap-2 text-[20px] font-[400]">
-                    Category:
-                    {product?.categories && product.categories.length > 0 ? (
-                      product?.categories.map((item, i) => (
-                        <span key={i}>{item.name}</span>
-                      ))
-                    ) : (
-                      <> No category</>
-                    )}
-                  </Typography.Text>
-                </Space>
-                <Space>
-                  <Typography.Text className="text-[20px] font-[400]">
-                    Availability:
-                  </Typography.Text>
-                  {product?.stock && product.stock > 0 ? (
-                    <Typography.Text className="text-[20px] font-[400] text-gray-500">
-                      In Stock
-                    </Typography.Text>
-                  ) : (
-                    <Typography.Text className="text-[20px] font-[400] text-gray-500">
-                      "Out of Stock"
-                    </Typography.Text>
-                  )}
-                </Space>
-              </Space>
-              <Divider />
-              <Typography.Paragraph
-                className="text-[20px] font-[400] text-gray-500"
-                ellipsis={{ rows: 4 }}
-              >
-                Desc: {product?.description}
+              <Typography.Title level={2} style={{ margin: 0 }}>
+                {product.name}
+              </Typography.Title>
+              <Statistic
+                value={product.basePrice}
+                precision={2}
+                prefix="$"
+                valueStyle={{ fontSize: 30, fontWeight: 700, color: "#4f46e5" }}
+                className="my-4"
+              />
+              <Typography.Paragraph type="secondary" className="text-[15px]">
+                {product.description}
               </Typography.Paragraph>
               <Divider />
-              <Space
-                direction="horizontal"
-                align="center"
-                className="items-center w-full"
-              >
-                <Typography.Text className="text-[20px] font-[400]">
-                  Quantity:
-                </Typography.Text>
+              <div className="flex items-center gap-3 mb-6">
+                <Typography.Text strong>Quantity</Typography.Text>
                 <InputNumber
-                  size="middle"
-                  width="250"
+                  size="large"
                   min={1}
                   max={10}
                   value={quantity}
                   onChange={onChange}
                 />
-              </Space>
-              <Divider />
-              <div className="flex flex-col gap-5">
-                <button
-                  className="rounded-full border border-black-500 text-base px-[25px] md:px-[30px] lg:px-[42px] py-[8px] md:py-[12px] lg:py-[12px] bg-white text-black hover:text-blue-500 hover:border-blue-500 hover:bg-white duration-300 ease-in"
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<ShoppingCartOutlined />}
                   onClick={handleAddToCart}
+                  disabled={!inStock}
+                  block
                 >
-                  Add To Cart
-                </button>
-                <button
-                  className="rounded-full border border-blue-500 text-base px-[25px] md:px-[30px] lg:px-[42px] py-[8px] md:py-[12px] lg:py-[12px] bg-blue-500 text-white hover:text-blue-500 hover:bg-white duration-300 ease-in"
+                  Add to cart
+                </Button>
+                <Button
+                  size="large"
+                  icon={<StarOutlined />}
                   onClick={handleReview}
+                  block
                 >
                   Review
-                </button>
+                </Button>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </Card>
+      )}
+    </>
   );
 };
 

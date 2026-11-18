@@ -1,10 +1,11 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
+import PageHeader from "@/components/PageHeader";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Form, Input, Space, Typography } from "antd";
+import { EditOutlined, UserOutlined } from "@ant-design/icons";
+import { Avatar, Button, Card, Descriptions, Skeleton, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 interface FieldType {
   name: string;
@@ -13,137 +14,85 @@ interface FieldType {
   role: string;
 }
 const Profile = () => {
-  const [form] = Form.useForm();
-  const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.login.currentUser);
-  const role: any = user?.user?.role;
 
   const axiosAuth = AxiosJWTInstance({ user });
   const [profile, setProfile] = useState<FieldType>();
 
-  const onFill = () => {
-    form.setFieldsValue({
-      name: profile?.name,
-      email: profile?.email,
-      address: profile?.address,
-      role: profile?.role,
-    });
-  };
   useEffect(() => {
-    onFill();
-  }, [profile]);
-
-  useEffect(() => {
-    return () => {
-      (async function getProfileUser() {
-        await axiosAuth({
-          method: "GET",
-          url: "/user",
-          headers: {
-            Authorization: `Bearer ${user?.accessToken}`,
-          },
-        })
-          .then((response) => {
-            setProfile(response.data);
-          })
-          .catch((error) => {
-            console.log(error);
-          });
-      })();
-    };
+    axiosAuth({
+      method: "GET",
+      url: "/user",
+      headers: {
+        Authorization: `Bearer ${user?.accessToken}`,
+      },
+    })
+      .then((response) => {
+        setProfile(response.data);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
   }, []);
+
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       <Helmet title="Profile">
         <></>
       </Helmet>
-      <div
-        className={`py-[20px] ${role === "ADMIN" ? "px-[30px]" : "mx-[35px]"}`}
-      >
-        <Space className=" py-[30px]">
-          <Button
-            onClick={() => navigate(-1)}
-            type="default"
-            size="large"
-            icon={<ArrowLeftOutlined />}
-          >
-            Back
-          </Button>
-        </Space>
-        <div className="border rounded-md">
-          <Typography.Text className="text-[32px] text-center block font-semibold py-[20px]">
-            Profile
-          </Typography.Text>
-          <div className="pt-[25px] pb-[40px] flex justify-center">
-            <Form
-              labelCol={{ span: 8 }}
-              style={{ margin: "0 45px", width: "50%" }}
-              form={form}
-              className="flex flex-col gap-5 justify-center"
-            >
-              <div className="flex justify-center items-center gap-[50px]">
-                <Form.Item<FieldType>
-                  name="name"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your name!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input size="large" placeholder="Name..." />
-                </Form.Item>
-
-                <Form.Item<FieldType>
-                  name="email"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your email!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input size="large" type="string" placeholder="Email..." />
-                </Form.Item>
+      <PageHeader
+        title="Profile"
+        description="Your account information."
+        backTo={-1}
+        extra={
+          <Link to="/profile/update">
+            <Button type="primary" icon={<EditOutlined />}>
+              Edit profile
+            </Button>
+          </Link>
+        }
+      />
+      <Card>
+        {!profile ? (
+          <Skeleton avatar active paragraph={{ rows: 3 }} />
+        ) : (
+          <>
+            <div className="flex items-center gap-4 mb-6">
+              <Avatar
+                size={64}
+                style={{ backgroundColor: "#4f46e5", fontSize: 26 }}
+                icon={!profile.name ? <UserOutlined /> : undefined}
+              >
+                {profile.name?.charAt(0).toUpperCase()}
+              </Avatar>
+              <div className="min-w-0">
+                <Typography.Title level={4} style={{ margin: 0 }}>
+                  {profile.name}
+                </Typography.Title>
+                <Typography.Text type="secondary">{profile.email}</Typography.Text>
               </div>
-
-              <div className="flex justify-center items-center gap-[50px]">
-                <Form.Item<FieldType>
-                  name="address"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your address!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input size="large" type="string" placeholder="Address..." />
-                </Form.Item>
-
-                <Form.Item<FieldType>
-                  name="role"
-                  rules={[
-                    { required: true },
-                    { message: "Please input your role!" },
-                  ]}
-                  className="w-full"
-                >
-                  <Input size="large" type="string" placeholder="Role..." />
-                </Form.Item>
-              </div>
-
-              <Link to="/profile/update" className="w-full">
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  size="large"
-                  className="w-full"
-                >
-                  Update
-                </Button>
-              </Link>
-            </Form>
-          </div>
-        </div>
-      </div>
-    </>
+              <Tag
+                color={profile.role === "ADMIN" ? "purple" : "blue"}
+                className="ml-auto"
+              >
+                {profile.role}
+              </Tag>
+            </div>
+            <Descriptions
+              bordered
+              column={1}
+              labelStyle={{ width: 160 }}
+              items={[
+                { key: "name", label: "Name", children: profile.name },
+                { key: "email", label: "Email", children: profile.email },
+                { key: "address", label: "Address", children: profile.address || "—" },
+                { key: "role", label: "Role", children: profile.role },
+              ]}
+            />
+          </>
+        )}
+      </Card>
+    </div>
   );
 };
 

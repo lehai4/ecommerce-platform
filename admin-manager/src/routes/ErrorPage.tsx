@@ -1,27 +1,26 @@
-import { Button, Typography } from "antd";
+import { Button, Result } from "antd";
 import { useNavigate, useRouteError } from "react-router-dom";
+
 export default function ErrorPage() {
   const error = useRouteError() as any;
   const navigate = useNavigate();
+  const is404 = error?.status === 404;
+
   return (
-    <div
-      id="error-page"
-      className="flex flex-col items-center justify-center h-3/6"
-    >
-      <h1 className="text-[40px] font-bold block">404!</h1>
-      <div className="block text-[32px] font-semibold">
-        Sorry, an unexpected error has occurred.
-      </div>
-      <Typography.Text className="text-[20px]">
-        <i>{error.statusText || error.message}</i>
-      </Typography.Text>
-      <Button
-        type="primary"
-        className="bg-blue-500 my-[15px]"
-        onClick={() => navigate(-1)}
-      >
-        Back
-      </Button>
+    <div id="error-page" className="flex min-h-[60vh] items-center justify-center p-6">
+      <Result
+        status={is404 ? "404" : "error"}
+        title={is404 ? "Page not found" : "Something went wrong"}
+        subTitle={error?.statusText || error?.message}
+        extra={[
+          <Button key="back" onClick={() => navigate(-1)}>
+            Go back
+          </Button>,
+          <Button key="home" type="primary" onClick={() => navigate("/")}>
+            Home
+          </Button>,
+        ]}
+      />
     </div>
   );
 }

@@ -1,5 +1,12 @@
 import Helmet from "@/components/Helmet";
+import Logo from "@/components/Logo";
 import axios from "@/lib/axios";
+import {
+  HomeOutlined,
+  LockOutlined,
+  MailOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
 import { Button, Form, Input, Typography, type FormProps } from "antd";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -12,8 +19,6 @@ type FieldType = {
 };
 
 const Register = () => {
-  const theme = localStorage.getItem("theme");
-
   const navigate = useNavigate();
   const [form] = Form.useForm();
 
@@ -34,115 +39,84 @@ const Register = () => {
     console.log("Failed:", errorInfo);
   };
   return (
-    <div className="h-full flex flex-col items-center justify-center">
-      <div className="border w-3/4 rounded-lg flex flex-col justify-center items-center">
-        <Helmet title="Authen/register">
-          <></>
-        </Helmet>
-        <h1
-          className={`text-[30px] font-bold pt-8 mb-[40px] ${
-            theme === "dark" ? "text-white" : "text-black"
-          }`}
+    <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm lg:border-0 lg:p-0 lg:shadow-none">
+      <Helmet title="Authen/register">
+        <></>
+      </Helmet>
+      <div className="mb-8 lg:hidden">
+        <Logo label="CMS" dark={false} />
+      </div>
+      <Typography.Title level={2} style={{ marginBottom: 4 }}>
+        Create an account
+      </Typography.Title>
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 28 }}>
+        Fill in your details to get started.
+      </Typography.Paragraph>
+      <Form
+        form={form}
+        name="register"
+        layout="vertical"
+        requiredMark={false}
+        size="large"
+        onFinish={onFinish}
+        onFinishFailed={onFinishFailed}
+        autoComplete="off"
+      >
+        <Form.Item<FieldType>
+          name="email"
+          label="Email"
+          rules={[
+            { required: true, message: "Please input your email!" },
+            {
+              pattern: /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/,
+              message: "Email format is incorrect",
+            },
+          ]}
         >
-          Register
-        </h1>
+          <Input prefix={<MailOutlined />} placeholder="you@example.com" />
+        </Form.Item>
 
-        <Form
-          form={form}
-          layout="vertical"
-          labelCol={{ span: 8 }}
-          style={{ width: "100%", padding: "0 50px" }}
-          initialValues={{ remember: true }}
-          onFinish={onFinish}
-          onFinishFailed={onFinishFailed}
-          autoComplete="off"
-        >
-          <Form.Item<FieldType>
-            name="email"
-            label="Email"
-            rules={[
-              { required: true },
-              {
-                pattern: /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g,
-                message: "Email format is incorrect",
-              },
-              { message: "Please input your email!" },
-            ]}
-          >
-            <Input size="middle" placeholder="Email..." />
-          </Form.Item>
-
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item<FieldType>
             name="name"
             label="Name"
-            rules={[
-              { required: true },
-
-              {
-                message: "Please input your name",
-              },
-            ]}
+            rules={[{ required: true, message: "Please input your name" }]}
           >
-            <Input size="middle" placeholder="Name..." />
+            <Input prefix={<UserOutlined />} placeholder="Full name" />
           </Form.Item>
           <Form.Item<FieldType>
             label="Address"
             name="address"
-            rules={[
-              { required: true },
-
-              {
-                message: "Please input your address",
-              },
-            ]}
+            rules={[{ required: true, message: "Please input your address" }]}
           >
-            <Input size="middle" placeholder="Address..." />
+            <Input prefix={<HomeOutlined />} placeholder="Address" />
           </Form.Item>
-          <Form.Item<FieldType>
-            name="password"
-            label="Password"
-            rules={[
-              { required: true },
-              {
-                pattern: /^(?=.*?[0-9])(?=.*?[A-Za-z]).{8,32}$/,
-                message:
-                  "Password has at least one number, one letter and one special character",
-              },
-              {
-                message: "Please input your password",
-              },
-            ]}
-          >
-            <Input.Password size="middle" placeholder="Password..." />
-          </Form.Item>
+        </div>
 
-          <Form.Item className=" w-full">
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="middle"
-              className="w-full"
-            >
-              Register
-            </Button>
-          </Form.Item>
-          <div className="flex flex-row mb-[30px] justify-center">
-            <Typography.Text
-              className={`${theme === "dark" ? "text-white" : "text-black"}`}
-            >
-              You do have an account?
-            </Typography.Text>
-            <Link
-              to="/auth/login"
-              className={`underline hover:underline ${
-                theme === "dark" ? "text-white" : "text-black"
-              }`}
-            >
-              Login
-            </Link>
-          </div>
-        </Form>
-      </div>
+        <Form.Item<FieldType>
+          name="password"
+          label="Password"
+          rules={[
+            { required: true, message: "Please input your password" },
+            {
+              pattern: /^(?=.*?[0-9])(?=.*?[A-Za-z]).{8,32}$/,
+              message:
+                "Password needs 8-32 characters with at least one letter and one number",
+            },
+          ]}
+        >
+          <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+        </Form.Item>
+
+        <Form.Item style={{ marginTop: 8 }}>
+          <Button type="primary" htmlType="submit" block>
+            Create account
+          </Button>
+        </Form.Item>
+      </Form>
+      <Typography.Paragraph type="secondary" className="text-center !mb-0">
+        Already have an account? <Link to="/auth/login">Sign in</Link>
+      </Typography.Paragraph>
     </div>
   );
 };
