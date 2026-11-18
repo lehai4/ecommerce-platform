@@ -1,47 +1,51 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { uniqueSlug } from 'src/util/slugify';
 import { FindProductsDto } from '../product/dto/find-products.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category } from './entities/category.entity';
 
-/** Responsible for managing categories in the database.
- * CRUD endpoints are available for categories.
- */
+const productSelect = {
+  id: true,
+  name: true,
+  urlName: true,
+  picture: true,
+  basePrice: true,
+  discountPercentage: true,
+  salePrice: true,
+  stock: true,
+} satisfies Prisma.ProductSelect;
+
+/** Responsible for managing categories in the database. */
 @Injectable()
 export class CategoryService {
-  /** Responsible for managing categories in the database.
-   * CRUD endpoints are available for categories.
-   *
-   * Instantiates the class and the PrismaService dependency
-   */
   constructor(private readonly prisma: PrismaService) {}
 
   /** Creates a new category */
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     const name = this.capitalizeOnlyFirstLetter(createCategoryDto.name);
 
-    const category = await this.prisma.category.create({
-      data: { ...createCategoryDto, name },
+    return this.prisma.category.create({
+      data: {
+        name,
+        slug: await this.uniqueCategorySlug(createCategoryDto.slug || name),
+      },
     });
-
-    return category;
   }
 
-  /** Returns all categories with pagination and can search by name
-   * Default is starting on page 1 showing 10 results per page
-   * and ordering by name
+  /** Returns all categories with pagination and can search by name.
+   * Ordered by name, each with its number of products.
    */
   async findAll({
     categoryName = '',
     page = 1,
     offset = 10,
   }: FindCategoriesDto): Promise<Category[]> {
-    const categoriesToSkip = (page - 1) * offset;
-
     return this.prisma.category.findMany({
-      skip: categoriesToSkip,
+      skip: (page - 1) * offset,
       take: offset,
       where: {
         name: { contains: categoryName, mode: 'insensitive' },
@@ -51,74 +55,81 @@ export class CategoryService {
     });
   }
 
-  /** Find category by ID and show the products that have this category */
+  /** Find category by ID with its products (any status), for admins */
   async findOneById(
     id: string,
-    { productName = '', page = 1, offset = 10 }: FindProductsDto,
+    findProductsDto: FindProductsDto,
   ): Promise<Category> {
-    const productsToSkip = (page - 1) * offset;
-
-    const category = await this.prisma.category.findUnique({
+    return this.prisma.category.findUnique({
       where: { id },
       include: {
-        products: {
-          select: { id: true, name: true, urlName: true, picture: true },
-          where: { name: { contains: productName, mode: 'insensitive' } },
-          skip: productsToSkip,
-          take: offset,
-        },
+        products: this.productsQuery(findProductsDto, { deletedAt: null }),
       },
       rejectOnNotFound: true,
     });
-
-    return category;
   }
 
-  /** Find category by name and show the products that have this category */
-  async findOneByName(
-    name: string,
-    { productName = '', page = 1, offset = 10 }: FindProductsDto,
+  /** Find category by slug (or by name, for older links) with the
+   * products shown in the shop
+   */
+  async findOneBySlugOrName(
+    slugOrName: string,
+    findProductsDto: FindProductsDto,
   ): Promise<Category> {
-    const productsToSkip = (page - 1) * offset;
-
-    name = this.capitalizeOnlyFirstLetter(name);
-
-    const category = await this.prisma.category.findUnique({
-      where: { name },
+    return this.prisma.category.findFirst({
+      where: {
+        OR: [
+          { slug: slugOrName },
+          { name: this.capitalizeOnlyFirstLetter(slugOrName) },
+        ],
+      },
       include: {
-        products: {
-          select: { id: true, name: true, urlName: true, picture: true },
-          where: { name: { contains: productName, mode: 'insensitive' } },
-          skip: productsToSkip,
-          take: offset,
-        },
+        products: this.productsQuery(findProductsDto, {
+          deletedAt: null,
+          status: ProductStatus.ACTIVE,
+        }),
       },
       rejectOnNotFound: true,
     });
-
-    return category;
   }
 
-  /** Updates category information */
+  /** Updates category information. Changing the name keeps the slug
+   * (so links don't break) unless a new slug is sent.
+   */
   async update(
     id: string,
     updateCategoryDto: UpdateCategoryDto,
   ): Promise<Category> {
+    const data: Prisma.CategoryUpdateInput = {};
     if (updateCategoryDto.name) {
-      return this.updateCategoryAndName(id, updateCategoryDto);
+      data.name = this.capitalizeOnlyFirstLetter(updateCategoryDto.name);
+    }
+    if (updateCategoryDto.slug) {
+      data.slug = await this.uniqueCategorySlug(updateCategoryDto.slug, id);
     }
 
-    const category = await this.prisma.category.update({
-      where: { id },
-      data: { ...updateCategoryDto },
-    });
-
-    return category;
+    return this.prisma.category.update({ where: { id }, data });
   }
 
-  /** Removes category from database */
+  /** Removes category from database (products keep existing) */
   async remove(id: string): Promise<void> {
     await this.prisma.category.delete({ where: { id } });
+  }
+
+  private productsQuery(
+    { productName = '', page = 1, offset = 10 }: FindProductsDto,
+    where: Prisma.ProductWhereInput,
+  ) {
+    return {
+      select: productSelect,
+      where: {
+        ...where,
+        name: { contains: productName, mode: 'insensitive' as const },
+      },
+      orderBy: { createdAt: 'desc' as const },
+      skip: (page - 1) * offset,
+      take: offset,
+    };
   }
 
   /** Capitalize only the first letter of the category name */
@@ -126,19 +137,14 @@ export class CategoryService {
     return name[0].toUpperCase() + name.substring(1).toLocaleLowerCase();
   }
 
-  /** Formats name and updates the category with the new one.
-   *
-   * Used when the user updates the category name.
-   */
-  private updateCategoryAndName(
-    id: string,
-    updateCategoryDto: UpdateCategoryDto,
-  ): Promise<Category> {
-    const name = this.capitalizeOnlyFirstLetter(updateCategoryDto.name);
-
-    return this.prisma.category.update({
-      where: { id },
-      data: { ...updateCategoryDto, name },
-    });
+  private uniqueCategorySlug(text: string, exceptId?: string): Promise<string> {
+    return uniqueSlug(
+      text,
+      async (slug) =>
+        (await this.prisma.category.count({
+          where: { slug, NOT: exceptId ? { id: exceptId } : undefined },
+        })) > 0,
+      'category',
+    );
   }
 }

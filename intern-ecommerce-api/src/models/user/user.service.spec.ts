@@ -15,6 +15,7 @@ const PrismaServiceMock = {
       create: jest.fn().mockImplementation(({ data }) => {
         userArray.push({ ...data });
       }),
+      findMany: jest.fn().mockImplementation(() => userArray),
       findUnique: jest.fn().mockImplementation(({ where }) => {
         return userArray.find((user) => {
           return user.id === where.id || user.email === where.email;

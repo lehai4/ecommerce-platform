@@ -37,23 +37,45 @@ model UserTokens {
 }
 
 model Product {
-  id                 String     @id @default(uuid())
-  name               String     @unique
-  urlName            String     @unique
+  id                 String        @id @default(uuid())
+  name               String        @unique
+  urlName            String        @unique
   picture            String?
   basePrice          Decimal
-  discountPercentage Int        @default(0)
-  stock              Int        @default(0)
+  discountPercentage Int           @default(0)
+  /// Price after discount; kept in sync by ProductService, used to filter/sort by price
+  salePrice          Decimal       @default(0)
+  stock              Int           @default(0)
+  /// Units sold in non-cancelled orders; kept in sync by OrderService
+  soldCount          Int           @default(0)
+  status             ProductStatus @default(ACTIVE)
   description        String?
-  createdAt          DateTime   @default(now())
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @default(now()) @updatedAt
+  /// Soft delete: hidden everywhere but kept so orders/purchases stay valid
+  deletedAt          DateTime?
   categories         Category[]
   Purchase           Purchase[]
   orderItems         OrderItem[]
+
+  @@index([status, deletedAt])
+  @@index([salePrice])
+  @@index([createdAt])
+  @@index([soldCount])
+}
+
+/// DRAFT: being prepared, ACTIVE: visible in the shop, ARCHIVED: no longer sold
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }
 
 model Category {
   id       String    @id @default(uuid())
   name     String    @unique
+  /// URL friendly name, e.g. "ao-thun"
+  slug     String    @unique
   products Product[]
 }
 

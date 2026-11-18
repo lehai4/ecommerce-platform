@@ -19,6 +19,16 @@ const PrismaServiceMock = {
           return category.id === where.id || category.name === where.name;
         });
       }),
+      count: jest.fn().mockImplementation(({ where }) => {
+        return categoryArray.filter(
+          (c) => c.slug === where.slug && c.id !== where.NOT?.id,
+        ).length;
+      }),
+      findFirst: jest.fn().mockImplementation(({ where }) => {
+        return categoryArray.find((c) =>
+          where.OR.some((cond) => cond.slug === c.slug || cond.name === c.name),
+        );
+      }),
       findMany: jest.fn().mockImplementation(() => {
         return categoryArray;
       }),
@@ -87,7 +97,7 @@ describe('CategoryService', () => {
       expect(categoryArray[3].name).toEqual('Categoria');
 
       expect(prismaService.category.create).toHaveBeenCalledWith({
-        data: { name: 'Categoria' },
+        data: { name: 'Categoria', slug: 'categoria' },
       });
     });
 
@@ -101,7 +111,7 @@ describe('CategoryService', () => {
       expect(categoryArray[3].name).toEqual('Categoria teste');
 
       expect(prismaService.category.create).toHaveBeenCalledWith({
-        data: { name: 'Categoria teste' },
+        data: { name: 'Categoria teste', slug: 'categoria-teste' },
       });
     });
   });
@@ -162,12 +172,14 @@ describe('CategoryService', () => {
         expect.objectContaining({
           where: { id: 'ec3b4cfc-5028-47c2-b631-970088efae5e' },
           include: {
-            products: {
-              select: { id: true, name: true, urlName: true, picture: true },
-              where: { name: { contains: 'Mesa', mode: 'insensitive' } },
+            products: expect.objectContaining({
+              where: {
+                deletedAt: null,
+                name: { contains: 'Mesa', mode: 'insensitive' },
+              },
               skip: 40,
               take: 20,
-            },
+            }),
           },
           rejectOnNotFound: true,
         }),
@@ -175,35 +187,35 @@ describe('CategoryService', () => {
     });
   });
 
-  describe('findOneByName', () => {
+  describe('findOneBySlugOrName', () => {
     it('should find one category by name', async () => {
-      const category = await categoryService.findOneByName('Madeira', {});
+      const category = await categoryService.findOneBySlugOrName('Madeira', {});
 
       expect(category).toEqual(categoryArray[1]);
 
-      expect(prismaService.category.findUnique).toHaveBeenLastCalledWith(
+      expect(prismaService.category.findFirst).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          where: { name: 'Madeira' },
+          where: { OR: [{ slug: 'Madeira' }, { name: 'Madeira' }] },
           rejectOnNotFound: true,
         }),
       );
     });
 
     it('should find one category by name capitalizing only first letter', async () => {
-      const category = await categoryService.findOneByName('madEiRa', {});
+      const category = await categoryService.findOneBySlugOrName('madEiRa', {});
 
       expect(category).toEqual(categoryArray[1]);
 
-      expect(prismaService.category.findUnique).toHaveBeenLastCalledWith(
+      expect(prismaService.category.findFirst).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          where: { name: 'Madeira' },
+          where: { OR: [{ slug: 'madEiRa' }, { name: 'Madeira' }] },
           rejectOnNotFound: true,
         }),
       );
     });
 
     it('should find one category by name with pagination and searching by product name', async () => {
-      const category = await categoryService.findOneByName('Madeira', {
+      const category = await categoryService.findOneBySlugOrName('Madeira', {
         productName: 'Mesa',
         page: 3,
         offset: 20,
@@ -211,16 +223,19 @@ describe('CategoryService', () => {
 
       expect(category).toEqual(categoryArray[1]);
 
-      expect(prismaService.category.findUnique).toHaveBeenCalledWith(
+      expect(prismaService.category.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { name: 'Madeira' },
+          where: { OR: [{ slug: 'Madeira' }, { name: 'Madeira' }] },
           include: {
-            products: {
-              select: { id: true, name: true, urlName: true, picture: true },
-              where: { name: { contains: 'Mesa', mode: 'insensitive' } },
+            products: expect.objectContaining({
+              where: {
+                deletedAt: null,
+                status: 'ACTIVE',
+                name: { contains: 'Mesa', mode: 'insensitive' },
+              },
               skip: 40,
               take: 20,
-            },
+            }),
           },
           rejectOnNotFound: true,
         }),

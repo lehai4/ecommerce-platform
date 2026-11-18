@@ -65,15 +65,15 @@ export class CategoryController {
     return this.categoryService.findOneById(id, findProductsDto);
   }
 
-  /** Find category by name */
-  @ApiOperation({ summary: 'Returns category by name and its products' })
+  /** Find category by slug (or name, for older links) */
+  @ApiOperation({ summary: 'Returns category by slug (or name) and its shop products' })
   @Public()
   @Get(':name')
   async findOneByName(
     @Param('name') name: string,
     @Query() findProductsDto: FindProductsDto,
   ): Promise<Category> {
-    return this.categoryService.findOneByName(name, findProductsDto);
+    return this.categoryService.findOneBySlugOrName(name, findProductsDto);
   }
 
   /** Updates category information, only for admins */

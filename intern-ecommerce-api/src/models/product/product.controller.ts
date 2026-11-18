@@ -16,10 +16,13 @@ import { Public } from 'src/auth/public.decorator';
 import { FileUpload } from 'src/common/decorators/file-upload.decorator';
 import { IsAdmin } from 'src/common/decorators/is-admin.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
-import { FindProductsDto } from './dto/find-products.dto';
+import {
+  AdminFindProductsDto,
+  FindProductsDto,
+} from './dto/find-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
-import { ProductService } from './product.service';
+import { PaginatedProducts, ProductService } from './product.service';
 import { File } from './types/file';
 
 /** Exposes product CRUD endpoints */
@@ -40,16 +43,28 @@ export class ProductController {
     return this.productService.create(createProductDto);
   }
 
-  /** Returns all products with pagination
+  /** Products shown in the shop (only ACTIVE).
    *
-   * Default is starting on page 1 showing 10 results per page,
-   * searching and ordering by name
+   * Supports search, category, price range, in-stock filter and sorting.
+   * Returns `{ data, total, page, offset }`.
    */
-  @ApiOperation({ summary: 'Returns all products' })
+  @ApiOperation({ summary: 'Lists shop products with filters and sorting' })
   @Public()
   @Get()
-  findAll(@Query() findAllProductsDto: FindProductsDto): Promise<Product[]> {
+  findAll(
+    @Query() findAllProductsDto: FindProductsDto,
+  ): Promise<PaginatedProducts> {
     return this.productService.findAll(findAllProductsDto);
+  }
+
+  /** All products for admins (any status), with status and stock filters */
+  @ApiOperation({ summary: 'Admin lists products of any status' })
+  @IsAdmin()
+  @Get('admin')
+  findAllForAdmin(
+    @Query() dto: AdminFindProductsDto,
+  ): Promise<PaginatedProducts> {
+    return this.productService.findAllForAdmin(dto);
   }
 
   /** Find product by ID, only for admins */
@@ -97,7 +112,7 @@ export class ProductController {
     return this.productService.update(id, updateProductDto);
   }
 
-  /** Deletes product from database, only for admins */
+  /** Soft deletes the product (kept for existing orders), only for admins */
   @ApiOperation({ summary: 'Admin deletes product' })
   @IsAdmin()
   @Delete(':id')

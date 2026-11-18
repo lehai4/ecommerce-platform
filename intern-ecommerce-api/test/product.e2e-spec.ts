@@ -73,6 +73,12 @@ describe('UserController (e2e)', () => {
       data: { role: 'ADMIN' },
     });
 
+    // The API makes the first registered user an ADMIN; only admin@ should be one here
+    await prisma.user.updateMany({
+      where: { email: { not: 'admin@example.com' } },
+      data: { role: 'USER' },
+    });
+
     let response = await request(app.getHttpServer())
       .post('/login')
       .send({ email: 'tester@example.com', password: 'abc123456' });
@@ -276,8 +282,9 @@ describe('UserController (e2e)', () => {
         .expect(200);
 
       const product: Product = response.body;
-      expect(product.picture.endsWith('testFile.png')).toBeTruthy();
-      expect(product.picture.startsWith('testFile.png')).toBeFalsy();
+      // Stored under a generated name (local storage or Cloudinary)
+      expect(product.picture).toMatch(/\.png$/);
+      expect(product.picture.endsWith('testFile.png')).toBeFalsy();
 
       const databaseProduct = await prisma.product.findUnique({
         where: { id: product2Id },
@@ -296,11 +303,10 @@ describe('UserController (e2e)', () => {
           .attach('file', buffer, 'testFile.err')
           .expect(400),
       ).resolves.toMatchObject({
-        text: JSON.stringify(
-          new BadRequestException(
-            new FileTypeError(validImageUploadTypesRegex).message,
-          ).getResponse(),
-        ),
+        text: JSON.stringify({
+          statusCode: 400,
+          message: 'Unsupported file type .err',
+        }),
       });
     });
 
@@ -340,30 +346,39 @@ describe('UserController (e2e)', () => {
   });
 
   describe('Get /product', () => {
+    const names = (body: { data: Product[] }) => body.data.map((p) => p.name);
+
     it('should return all products with default pagination', async () => {
       const response = await request(app.getHttpServer())
-        .get('/product')
+        .get('/product?sort=name_asc')
         .send()
         .expect(200);
 
-      const products = response.body as Product[];
+      const products = response.body.data as Product[];
 
+      expect(response.body.total).toEqual(4);
+      expect(response.body.page).toEqual(1);
+      expect(response.body.offset).toEqual(10);
       expect(products.length).toEqual(4);
       expect(products[1].name).toEqual('Brand2 wood table');
 
-      expect(response.body[1].categories).toEqual(
-        expect.arrayContaining([{ name: 'Casa' }, { name: 'Madeira' }]),
+      expect(response.body.data[1].categories).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Casa', slug: 'casa' }),
+          expect.objectContaining({ name: 'Madeira', slug: 'madeira' }),
+        ]),
       );
     });
 
     it('should return all products with custom pagination', async () => {
       const response = await request(app.getHttpServer())
-        .get('/product?page=2&offset=2')
+        .get('/product?page=2&offset=2&sort=name_asc')
         .send()
         .expect(200);
 
-      const products = response.body as Product[];
+      const products = response.body.data as Product[];
 
+      expect(response.body.total).toEqual(4);
       expect(products.length).toEqual(2);
       expect(products[1].name).toEqual('Brand4 wood table');
     });
@@ -374,10 +389,93 @@ describe('UserController (e2e)', () => {
         .send()
         .expect(200);
 
-      const products = response.body as Product[];
+      const products = response.body.data as Product[];
 
-      expect(products.length).toEqual(1);
+      expect(response.body.total).toEqual(1);
       expect(products[0].name).toEqual('Brand1 wood table');
+    });
+
+    it('should sort by price after discount', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/product?sort=price_asc')
+        .expect(200);
+
+      // Brand2 costs 123 with 8% off = 113.16
+      expect(names(response.body)).toEqual([
+        'Brand2 wood table',
+        'Brand1 wood table',
+        'Brand3 wood table',
+        'Brand4 wood table',
+      ]);
+      expect(response.body.data[0].salePrice).toEqual('113.16');
+    });
+
+    it('should filter by price range', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/product?minPrice=115&maxPrice=160&sort=price_asc')
+        .expect(200);
+
+      expect(names(response.body)).toEqual([
+        'Brand1 wood table',
+        'Brand3 wood table',
+      ]);
+    });
+
+    it('should filter by category slug and by stock', async () => {
+      let response = await request(app.getHttpServer())
+        .get('/product?category=madeira')
+        .expect(200);
+      expect(names(response.body)).toEqual(['Brand2 wood table']);
+
+      response = await request(app.getHttpServer())
+        .get('/product?inStock=true')
+        .expect(200);
+      expect(names(response.body)).toEqual(['Brand2 wood table']);
+    });
+
+    it('should not accept an unknown sort', async () => {
+      await request(app.getHttpServer())
+        .get('/product?sort=random')
+        .expect(400);
+    });
+
+    it('should hide DRAFT products from the shop but not from admins', async () => {
+      await request(app.getHttpServer())
+        .patch(`/product/${product2Id}`)
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .send({ status: 'DRAFT' })
+        .expect(200);
+
+      const shop = await request(app.getHttpServer())
+        .get('/product')
+        .expect(200);
+      expect(shop.body.total).toEqual(3);
+      expect(names(shop.body)).not.toContain('Brand2 wood table');
+
+      await request(app.getHttpServer())
+        .get('/product/brand2-wood-table')
+        .expect(404);
+
+      const admin = await request(app.getHttpServer())
+        .get('/product/admin?status=DRAFT')
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .expect(200);
+      expect(names(admin.body)).toEqual(['Brand2 wood table']);
+
+      await request(app.getHttpServer())
+        .get('/product/admin')
+        .set({ Authorization: `Bearer ${token}` })
+        .expect(403);
+    });
+
+    it('should filter admin list by stock level', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/product/admin?stockLevel=out')
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .expect(200);
+
+      expect(response.body.total).toEqual(3);
+      expect(names(response.body)).not.toContain('Brand2 wood table');
     });
   });
 
@@ -550,12 +648,34 @@ describe('UserController (e2e)', () => {
   });
 
   describe('Delete /product/:id', () => {
-    it('should delete product', async () => {
+    it('should soft delete product', async () => {
       await request(app.getHttpServer())
         .delete(`/product/${product2Id}`)
         .set({ Authorization: `Bearer ${adminToken}` })
         .send()
         .expect(204);
+
+      // Hidden everywhere...
+      const shop = await request(app.getHttpServer()).get('/product');
+      expect(shop.body.total).toEqual(3);
+      await request(app.getHttpServer())
+        .get(`/product/id/${product2Id}`)
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .expect(404);
+
+      // ...but the row is kept for existing orders
+      const databaseProduct = await prisma.product.findUnique({
+        where: { id: product2Id },
+      });
+      expect(databaseProduct.deletedAt).toBeInstanceOf(Date);
+      expect(databaseProduct.status).toEqual('ARCHIVED');
+
+      // and its name can be used again
+      await request(app.getHttpServer())
+        .post('/product')
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .send({ name: 'Brand2 wood table', basePrice: 10 })
+        .expect(201);
     });
 
     it('should not delete product if id is invalid', async () => {

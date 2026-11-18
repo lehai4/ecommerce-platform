@@ -3,12 +3,17 @@ import { ProductService } from './product.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Product } from './entities/product.entity';
 import { File } from './types/file';
+import { ImageStorageService } from 'src/common/image-storage/image-storage.service';
 
 let productArray: Product[] = [];
+const CATEGORY_INCLUDE = {
+  categories: { select: { id: true, name: true, slug: true } },
+};
 
 const PrismaServiceMock = {
   provide: PrismaService,
   useValue: {
+    $transaction: jest.fn().mockImplementation((queries) => Promise.all(queries)),
     product: {
       create: jest.fn().mockImplementation(({ data }) => {
         productArray.push({ ...data });
@@ -17,6 +22,17 @@ const PrismaServiceMock = {
         return productArray.find((product) => {
           return product.urlName === where.urlName || product.id === where.id;
         });
+      }),
+      count: jest.fn().mockImplementation(({ where } = {}) => {
+        if (!where?.urlName) return productArray.length;
+        return productArray.filter(
+          (p) => p.urlName === where.urlName && p.id !== where.NOT?.id,
+        ).length;
+      }),
+      findFirst: jest.fn().mockImplementation(({ where }) => {
+        return productArray.find(
+          (p) => (where.id && p.id === where.id) || (where.urlName && p.urlName === where.urlName),
+        );
       }),
       findMany: jest.fn().mockImplementation(() => {
         return productArray;
@@ -47,7 +63,18 @@ describe('ProductService', () => {
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ProductService, PrismaServiceMock],
+      providers: [
+        ProductService,
+        PrismaServiceMock,
+        {
+          provide: ImageStorageService,
+          useValue: {
+            upload: jest.fn().mockImplementation(
+              (file: File) => `localhost:8070/${file.filename}`,
+            ),
+          },
+        },
+      ],
     }).compile();
 
     productService = module.get<ProductService>(ProductService);
@@ -115,11 +142,12 @@ describe('ProductService', () => {
           urlName: 'brand3-black-wheelchair',
           basePrice: '70.00',
           discountPercentage: 5,
+          salePrice: 66.5,
           stock: 7,
           description: 'Black wheelchair for offices',
           categories: { connect: [] },
         },
-        include: { categories: { select: { name: true } } },
+        include: CATEGORY_INCLUDE,
       });
     });
 
@@ -146,6 +174,7 @@ describe('ProductService', () => {
           urlName: 'brand3-black-wheelchair',
           basePrice: '70.00',
           discountPercentage: 5,
+          salePrice: 66.5,
           stock: 7,
           description: 'Black wheelchair for offices',
           categories: {
@@ -156,7 +185,7 @@ describe('ProductService', () => {
             ],
           },
         },
-        include: { categories: { select: { name: true } } },
+        include: CATEGORY_INCLUDE,
       });
     });
   });
@@ -172,8 +201,8 @@ describe('ProductService', () => {
         file,
       );
 
-      expect(product.picture).toEqual(file.filename);
-      expect(productArray[1].picture).toEqual(file.filename);
+      expect(product.picture).toEqual(`localhost:8070/${file.filename}`);
+      expect(productArray[1].picture).toEqual(`localhost:8070/${file.filename}`);
     });
   });
 
@@ -183,7 +212,12 @@ describe('ProductService', () => {
 
       expect(prismaService.product.findMany).toHaveBeenCalled();
 
-      expect(products).toEqual(productArray);
+      expect(products).toEqual({
+        data: productArray,
+        total: productArray.length,
+        page: 1,
+        offset: 10,
+      });
     });
 
     it('should find all products with pagination', async () => {
@@ -203,9 +237,9 @@ describe('ProductService', () => {
 
       expect(product).toEqual(productArray[1]);
 
-      expect(prismaService.product.findUnique).toHaveBeenCalledWith({
-        where: { id: 'a2f891a5-4f1f-43e9-92d4-7d8e9de2bf7c' },
-        include: { categories: { select: { name: true } } },
+      expect(prismaService.product.findFirst).toHaveBeenCalledWith({
+        where: { id: 'a2f891a5-4f1f-43e9-92d4-7d8e9de2bf7c', deletedAt: null },
+        include: CATEGORY_INCLUDE,
         rejectOnNotFound: true,
       });
     });
@@ -219,9 +253,13 @@ describe('ProductService', () => {
 
       expect(product).toEqual(productArray[0]);
 
-      expect(prismaService.product.findUnique).toHaveBeenCalledWith({
-        where: { urlName: 'brand1-black-wheelchair' },
-        include: { categories: { select: { name: true } } },
+      expect(prismaService.product.findFirst).toHaveBeenCalledWith({
+        where: {
+          urlName: 'brand1-black-wheelchair',
+          status: 'ACTIVE',
+          deletedAt: null,
+        },
+        include: CATEGORY_INCLUDE,
         rejectOnNotFound: true,
       });
     });
@@ -249,7 +287,9 @@ describe('ProductService', () => {
           discountPercentage: 50,
           description: 'Black and orange wheelchair on promotion!',
           stock: 10,
+          salePrice: 90,
         },
+        include: CATEGORY_INCLUDE,
       });
 
       expect(product.id).toEqual('a2f891a5-4f1f-43e9-92d4-7d8e9de2bf7c');
@@ -265,18 +305,23 @@ describe('ProductService', () => {
   });
 
   describe('remove', () => {
-    it('should remove product', async () => {
+    it('should soft delete product and free its name and url', async () => {
       await productService.remove('a2f891a5-4f1f-43e9-92d4-7d8e9de2bf7c');
 
-      expect(prismaService.product.delete).toHaveBeenCalledWith({
+      expect(prismaService.product.delete).not.toHaveBeenCalled();
+      expect(prismaService.product.update).toHaveBeenCalledWith({
         where: { id: 'a2f891a5-4f1f-43e9-92d4-7d8e9de2bf7c' },
+        data: expect.objectContaining({
+          deletedAt: expect.any(Date),
+          status: 'ARCHIVED',
+          categories: { set: [] },
+        }),
       });
 
-      const product = await productService.findOneById(
-        'a2f891a5-4f1f-43e9-92d4-7d8e9de2bf7c',
-      );
-
-      expect(product).toBeUndefined();
+      const product = productArray[1] as Product & { deletedAt?: Date };
+      expect(product.deletedAt).toBeInstanceOf(Date);
+      expect(product.name).toMatch(/^Brand2 black wheelchair \(deleted-/);
+      expect(product.urlName).toMatch(/^brand2-black-wheelchair--deleted-/);
     });
   });
 });

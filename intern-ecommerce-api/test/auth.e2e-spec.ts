@@ -85,6 +85,12 @@ describe('AuthController (e2e)', () => {
       where: { email: 'admin@example.com' },
       data: { role: 'ADMIN' },
     });
+
+    // The API makes the first registered user an ADMIN; only admin@ should be one here
+    await prisma.user.updateMany({
+      where: { email: { not: 'admin@example.com' } },
+      data: { role: 'USER' },
+    });
   });
 
   describe('Post /login', () => {

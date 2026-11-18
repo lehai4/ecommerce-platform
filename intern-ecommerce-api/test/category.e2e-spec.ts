@@ -65,6 +65,12 @@ describe('CategoryController (e2e)', () => {
       data: { role: 'ADMIN' },
     });
 
+    // The API makes the first registered user an ADMIN; only admin@ should be one here
+    await prisma.user.updateMany({
+      where: { email: { not: 'admin@example.com' } },
+      data: { role: 'USER' },
+    });
+
     let response = await request(app.getHttpServer())
       .post('/login')
       .send({ email: 'tester@example.com', password: 'abc123456' });
@@ -235,18 +241,18 @@ describe('CategoryController (e2e)', () => {
       expect(response.body).toEqual(expect.objectContaining(databaseCategory));
       expect(response.body.products).toEqual(
         expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: productIds[0],
             name: 'Brand2 wood table',
             urlName: 'brand2-wood-table',
             picture: null,
-          },
-          {
+          }),
+          expect.objectContaining({
             id: productIds[1],
             name: 'Brand1 wood chair',
             urlName: 'brand1-wood-chair',
             picture: null,
-          },
+          }),
         ]),
       );
     });
@@ -265,12 +271,12 @@ describe('CategoryController (e2e)', () => {
       expect(response.body).toEqual(expect.objectContaining(databaseCategory));
       expect(response.body.products).toEqual(
         expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: productIds[0],
             name: 'Brand2 wood table',
             urlName: 'brand2-wood-table',
             picture: null,
-          },
+          }),
         ]),
       );
     });
@@ -317,18 +323,18 @@ describe('CategoryController (e2e)', () => {
       expect(response.body).toEqual(expect.objectContaining(databaseCategory));
       expect(response.body.products).toEqual(
         expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: productIds[0],
             name: 'Brand2 wood table',
             urlName: 'brand2-wood-table',
             picture: null,
-          },
-          {
+          }),
+          expect.objectContaining({
             id: productIds[1],
             name: 'Brand1 wood chair',
             urlName: 'brand1-wood-chair',
             picture: null,
-          },
+          }),
         ]),
       );
     });
@@ -346,18 +352,18 @@ describe('CategoryController (e2e)', () => {
       expect(response.body).toEqual(expect.objectContaining(databaseCategory));
       expect(response.body.products).toEqual(
         expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: productIds[0],
             name: 'Brand2 wood table',
             urlName: 'brand2-wood-table',
             picture: null,
-          },
-          {
+          }),
+          expect.objectContaining({
             id: productIds[1],
             name: 'Brand1 wood chair',
             urlName: 'brand1-wood-chair',
             picture: null,
-          },
+          }),
         ]),
       );
     });
@@ -375,12 +381,12 @@ describe('CategoryController (e2e)', () => {
       expect(response.body).toEqual(expect.objectContaining(databaseCategory));
       expect(response.body.products).toEqual(
         expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: productIds[0],
             name: 'Brand2 wood table',
             urlName: 'brand2-wood-table',
             picture: null,
-          },
+          }),
         ]),
       );
     });

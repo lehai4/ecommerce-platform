@@ -1,7 +1,9 @@
 import { OmitType } from '@nestjs/swagger';
+import { ProductStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime';
 import {
   IsArray,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -65,4 +67,13 @@ export class CreateProductDto extends OmitType(Product, [
   @IsOptional()
   @IsArray()
   categories?: string[];
+
+  /**
+   * DRAFT (hidden), ACTIVE (in the shop) or ARCHIVED (no longer sold).
+   * Defaults to ACTIVE
+   * @example "ACTIVE"
+   */
+  @IsOptional()
+  @IsEnum(ProductStatus)
+  status?: ProductStatus;
 }

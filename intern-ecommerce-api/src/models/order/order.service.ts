@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, Role } from '@prisma/client';
+import { OrderStatus, Prisma, ProductStatus, Role } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import currency from 'currency.js';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -60,10 +60,16 @@ export class OrderService {
 
     return this.prisma.$transaction(async (tx) => {
       const products = await tx.product.findMany({
-        where: { id: { in: productIds } },
+        where: {
+          id: { in: productIds },
+          status: ProductStatus.ACTIVE,
+          deletedAt: null,
+        },
       });
       if (products.length !== productIds.length) {
-        throw new NotFoundException('Some products in the cart no longer exist');
+        throw new NotFoundException(
+          'Some products in the cart are no longer available',
+        );
       }
 
       let subtotal = currency(0);
@@ -76,7 +82,10 @@ export class OrderService {
         // Only succeeds if enough stock is left at this moment.
         const { count } = await tx.product.updateMany({
           where: { id: product.id, stock: { gte: quantity } },
-          data: { stock: { decrement: quantity } },
+          data: {
+            stock: { decrement: quantity },
+            soldCount: { increment: quantity },
+          },
         });
         if (count === 0) {
           throw new ConflictException(
@@ -252,7 +261,10 @@ export class OrderService {
           if (!item.productId) continue; // product was deleted
           await tx.product.updateMany({
             where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
+            data: {
+              stock: { increment: item.quantity },
+              soldCount: { decrement: item.quantity },
+            },
           });
         }
       }
