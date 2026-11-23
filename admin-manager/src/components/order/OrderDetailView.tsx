@@ -20,7 +20,14 @@ import OrderStatusTag from "./OrderStatusTag";
 const FLOW: OrderStatus[] = ["PENDING", "CONFIRMED", "SHIPPING", "DELIVERED"];
 
 /** Read-only view of an order, shared by the admin and customer pages */
-const OrderDetailView = ({ order }: { order: Order }) => {
+const OrderDetailView = ({
+  order,
+  aside,
+}: {
+  order: Order;
+  /** Extra cards at the top of the side column (e.g. payment) */
+  aside?: React.ReactNode;
+}) => {
   const isCancelled = order.status === "CANCELLED";
   // Last status reached before cancelling, so the progress bar stops there.
   const reached = isCancelled
@@ -133,6 +140,7 @@ const OrderDetailView = ({ order }: { order: Order }) => {
       </div>
 
       <div className="flex flex-col gap-6">
+        {aside}
         <Card title="Customer">
           <Descriptions
             column={1}

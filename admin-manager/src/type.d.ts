@@ -28,6 +28,8 @@ export interface ProductProps {
   salePrice: string;
   stock: number;
   soldCount: number;
+  ratingAverage?: number;
+  ratingCount?: number;
   status: ProductStatus;
   categories: Category[];
   description: string;
@@ -126,39 +128,6 @@ export interface Token {
 }
 //
 
-export interface DataTypePurchase {
-  key: React.key;
-  id: string;
-  userId: string;
-  productId: string;
-  amount: number;
-  totalPrice: string;
-  reviewNote: string | null;
-  reviewComment: string | null;
-  createdAt: string;
-  user: {
-    email: string;
-  };
-  product: {
-    name: string;
-  };
-}
-export interface Purchase {
-  id: string;
-  userId: string;
-  productId: string;
-  amount: number;
-  totalPrice: string;
-  reviewNote: string | null;
-  reviewComment: string | null;
-  createdAt: string;
-  user: {
-    email: string;
-  };
-  product: {
-    name: string;
-  };
-}
 
 // ---------- Orders ----------
 export type OrderStatus =
@@ -188,11 +157,17 @@ export interface OrderStatusHistory {
   createdAt: string;
 }
 
+export type PaymentMethod = "COD" | "BANK_TRANSFER";
+export type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED";
+
 export interface Order {
   id: string;
   code: string;
   userId: string | null;
   status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paidAt: string | null;
   customerName: string;
   phone: string;
   shippingAddress: string;
@@ -234,6 +209,8 @@ export interface DashboardKpis {
   averageOrderValue: number;
   itemsSold: number;
   newCustomers: number;
+  collected: number;
+  outstanding: number;
 }
 
 export interface DashboardData {
@@ -312,4 +289,102 @@ export interface CustomerDetail extends Omit<CustomerListItem, "orders" | "spent
     times: number;
   }[];
   recentOrders: OrderListItem[];
+}
+
+// ---------- Payments ----------
+export interface OrderPayment {
+  orderId: string;
+  code: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  paidAt: string | null;
+  total: string;
+  bankTransfer: {
+    configured: boolean;
+    bankId: string;
+    accountNo: string;
+    accountName: string;
+    amount: number;
+    content: string;
+    qrUrl: string | null;
+  } | null;
+}
+
+// ---------- Reviews ----------
+export type ReviewStatus = "VISIBLE" | "HIDDEN";
+
+export interface Review {
+  id: string;
+  productId: string;
+  userId: string | null;
+  orderId: string | null;
+  rating: number;
+  comment: string | null;
+  status: ReviewStatus;
+  reply: string | null;
+  repliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product?: { id: string; name: string; urlName: string; picture: string | null };
+  user?: { id: string; email: string; name: string | null } | null;
+  order?: { id: string; code: string } | null;
+}
+
+export interface PublicReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  reply: string | null;
+  repliedAt: string | null;
+  createdAt: string;
+  author: string;
+}
+
+export interface ProductReviews extends Paginated<PublicReview> {
+  summary: {
+    average: number;
+    count: number;
+    distribution: { rating: number; count: number }[];
+  };
+}
+
+export interface ReviewToWrite {
+  orderId: string;
+  orderCode: string;
+  deliveredAt: string;
+  productId: string;
+  productName: string;
+  productPicture: string | null;
+}
+
+// ---------- Cart ----------
+export type CartWarning =
+  | { type: "UNAVAILABLE" }
+  | { type: "OUT_OF_STOCK" }
+  | { type: "NOT_ENOUGH_STOCK"; available: number }
+  | { type: "PRICE_CHANGED"; previousPrice: number; currentPrice: number };
+
+export interface CartLine {
+  productId: string;
+  name: string;
+  urlName: string;
+  picture: string | null;
+  sku: string | null;
+  basePrice: number;
+  discountPercentage: number;
+  unitPrice: number;
+  quantity: number;
+  stock: number;
+  lineTotal: number;
+  warnings: CartWarning[];
+}
+
+export interface ServerCart {
+  token: string | null;
+  items: CartLine[];
+  itemCount: number;
+  subtotal: number;
+  discountTotal: number;
+  total: number;
+  canCheckout: boolean;
 }

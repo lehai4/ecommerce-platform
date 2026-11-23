@@ -1,39 +1,30 @@
-import { pictureUrl } from "@/lib/image";
 import AxiosJWTInstance from "@/InstanceAxios";
-import { clearAllCart, deleteItemCart } from "@/redux/slice/cartSlice";
-import { ProductProps } from "@/type";
+import CartPopover from "@/components/cart/CartPopover";
+import { CartProvider } from "@/hook/useCart";
 import {
-  CloseOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
   MoonOutlined,
-  ShoppingCartOutlined,
   ShoppingOutlined,
   SunOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import {
   Avatar,
-  Badge,
   Button,
   Drawer,
   Dropdown,
-  Empty,
   Grid,
-  Image,
   Layout,
-  List,
   Menu,
   MenuProps,
-  Popover,
   Space,
   Tooltip,
-  Typography,
   theme,
 } from "antd";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { routerAdmin } from "../MockAPI";
 import Logo from "../components/Logo";
@@ -46,16 +37,11 @@ const { Header, Content, Sider } = Layout;
 const SIDER_WIDTH = 248;
 const SIDER_COLLAPSED_WIDTH = 72;
 
-const formatMoney = (value: number) =>
-  value.toLocaleString("en-US", { style: "currency", currency: "USD" });
-
 const RootDefault = () => {
   const dispath = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const cartArr = useAppSelector((state) => state.cart.cartArr);
-  const cartLength = useAppSelector((state) => state.cart.numberCart);
   const user = useAppSelector((state) => state.auth.login.currentUser);
 
   const axiosAuth = AxiosJWTInstance({ user });
@@ -72,10 +58,6 @@ const RootDefault = () => {
     token: { colorBgContainer, colorBorderSecondary },
   } = theme.useToken();
 
-  const handleDeleteItemCart = (item: ProductProps) => {
-    dispath(deleteItemCart(item));
-  };
-
   const handleLogOut = async () => {
     await signOut({
       dispath,
@@ -87,18 +69,6 @@ const RootDefault = () => {
 
   const onChangeTheme = () => {
     themeContext === "dark" ? setTheme("light") : setTheme("dark");
-  };
-
-  const overallPrice = useCallback(() => {
-    return cartArr.reduce((acc, current) => {
-      return acc + Number(current.basePrice) * Number(current.quantity);
-    }, 0);
-  }, [cartArr, cartLength]);
-
-  const [cartOpen, setCartOpen] = useState(false);
-  const goToCheckout = () => {
-    setCartOpen(false);
-    navigate("/checkout");
   };
 
   useEffect(() => {
@@ -287,69 +257,8 @@ const RootDefault = () => {
   }
 
   /* ---------- User (storefront) layout ---------- */
-  const cartContent =
-    cartLength > 0 ? (
-      <div className="w-[340px] max-w-[85vw]">
-        <List
-          itemLayout="horizontal"
-          dataSource={cartArr}
-          renderItem={(item) => (
-            <List.Item
-              actions={[
-                <Button
-                  key="remove"
-                  type="text"
-                  size="small"
-                  aria-label={`Remove ${item.name}`}
-                  icon={<CloseOutlined />}
-                  onClick={() => handleDeleteItemCart(item)}
-                />,
-              ]}
-            >
-              <List.Item.Meta
-                avatar={
-                  <Image
-                    src={pictureUrl(item.picture, 56)}
-                    preview={false}
-                    width={56}
-                    height={56}
-                    className="rounded-md object-cover"
-                  />
-                }
-                title={<Typography.Text strong>{item.name}</Typography.Text>}
-                description={
-                  <span>
-                    {item.quantity} × {formatMoney(Number(item.basePrice))}
-                  </span>
-                }
-              />
-            </List.Item>
-          )}
-        />
-        <div className="flex items-center justify-between border-t pt-3 mt-1">
-          <Typography.Text type="secondary">Total</Typography.Text>
-          <Typography.Text strong className="text-[16px]">
-            {formatMoney(overallPrice())}
-          </Typography.Text>
-        </div>
-        <div className="flex gap-2 mt-3">
-          <Button block danger onClick={() => dispath(clearAllCart())}>
-            Clear cart
-          </Button>
-          <Button block type="primary" onClick={goToCheckout}>
-            Checkout
-          </Button>
-        </div>
-      </div>
-    ) : (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="Your cart is empty"
-        className="w-[240px]"
-      />
-    );
-
   return (
+    <CartProvider>
     <Layout style={{ minHeight: "100vh" }}>
       <Header
         style={{
@@ -366,22 +275,7 @@ const RootDefault = () => {
             <Logo label="CMS Store" dark={false} />
           </Link>
           <Space size="small">
-            <Popover
-              open={cartOpen}
-              onOpenChange={setCartOpen}
-              trigger="click"
-              placement="bottomRight"
-              title="Shopping cart"
-              content={cartContent}
-            >
-              <Badge count={cartLength} size="small">
-                <Button
-                  type="text"
-                  aria-label="Cart"
-                  icon={<ShoppingCartOutlined className="text-[18px]" />}
-                />
-              </Badge>
-            </Popover>
+            <CartPopover />
             <div className="hidden md:block">{userButton}</div>
             <Button
               className="md:!hidden"
@@ -425,6 +319,7 @@ const RootDefault = () => {
         />
       </Drawer>
     </Layout>
+    </CartProvider>
   );
 };
 

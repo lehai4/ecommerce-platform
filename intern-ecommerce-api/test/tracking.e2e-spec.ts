@@ -72,7 +72,6 @@ describe('Tracking (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.purchase.deleteMany();
     await prisma.order.deleteMany();
     await prisma.product.deleteMany();
     await prisma.category.deleteMany();
@@ -199,6 +198,8 @@ describe('Tracking (e2e)', () => {
         averageOrderValue: 80,
         itemsSold: 5,
         newCustomers: 1,
+        collected: 100,
+        outstanding: 60,
       });
       expect(body.sales).toEqual([
         { date: today, orders: 2, revenue: 100, sales: 160 },

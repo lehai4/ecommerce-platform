@@ -18,6 +18,7 @@ import {
   CustomerDetail,
   CustomerList,
   Inventory,
+  ReviewList,
   Checkout,
   MyOrderDetail,
   MyOrders,
@@ -31,8 +32,6 @@ import {
   ProductDetailSlug,
   ProductList,
   Profile,
-  PurChase,
-  ReviewPurchase,
   RootDefault,
   UpdateProfile,
 } from "./routes/importRoot";
@@ -92,16 +91,6 @@ function App() {
           errorElement: <ErrorPage />,
         },
         {
-          path: "/purchase",
-          element: <PurChase />,
-          errorElement: <ErrorPage />,
-        },
-        {
-          path: "/purchase/:id",
-          element: <ReviewPurchase />,
-          errorElement: <ErrorPage />,
-        },
-        {
           path: "/order",
           element: <OrderList />,
           errorElement: <ErrorPage />,
@@ -114,6 +103,11 @@ function App() {
         {
           path: "/inventory",
           element: <Inventory />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/review",
+          element: <ReviewList />,
           errorElement: <ErrorPage />,
         },
         {

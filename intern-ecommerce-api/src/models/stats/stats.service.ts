@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { OrderStatus, Prisma, ProductStatus, Role } from '@prisma/client';
+import {
+  OrderStatus,
+  PaymentStatus,
+  Prisma,
+  ProductStatus,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   addDays,
@@ -32,6 +38,10 @@ export interface Kpis {
   averageOrderValue: number;
   itemsSold: number;
   newCustomers: number;
+  /** Money received (orders marked paid) */
+  collected: number;
+  /** Not cancelled and not paid yet */
+  outstanding: number;
 }
 
 /** Numbers for the admin dashboard */
@@ -90,7 +100,7 @@ export class StatsService {
     const createdAt = dayRange(from, to);
     const notCancelled = { createdAt, status: { not: OrderStatus.CANCELLED } };
 
-    const [orders, delivered, items, newCustomers] = await Promise.all([
+    const [orders, delivered, items, newCustomers, paid, unpaid] = await Promise.all([
       this.prisma.order.aggregate({
         where: notCancelled,
         _count: { _all: true },
@@ -105,6 +115,14 @@ export class StatsService {
         _sum: { quantity: true },
       }),
       this.prisma.user.count({ where: { createdAt, role: Role.USER } }),
+      this.prisma.order.aggregate({
+        where: { createdAt, paymentStatus: PaymentStatus.PAID },
+        _sum: { total: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { ...notCancelled, paymentStatus: PaymentStatus.UNPAID },
+        _sum: { total: true },
+      }),
     ]);
 
     const count = orders._count._all;
@@ -116,6 +134,8 @@ export class StatsService {
       averageOrderValue: count ? Math.round((sales / count) * 100) / 100 : 0,
       itemsSold: items._sum.quantity ?? 0,
       newCustomers,
+      collected: money(paid._sum.total),
+      outstanding: money(unpaid._sum.total),
     };
   }
 

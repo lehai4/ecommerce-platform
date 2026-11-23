@@ -44,6 +44,7 @@ const SORT_ORDER: Record<ProductSort, Prisma.ProductOrderByWithRelationInput[]> 
     name_asc: [{ name: 'asc' }],
     name_desc: [{ name: 'desc' }],
     best_selling: [{ soldCount: 'desc' }, { createdAt: 'desc' }],
+    rating_desc: [{ ratingAverage: 'desc' }, { ratingCount: 'desc' }],
   };
 
 /** Paginated result */
@@ -326,7 +327,7 @@ export class ProductService {
 
   /** Soft deletes a product.
    *
-   * The row is kept so orders and purchases that reference it stay valid,
+   * The row is kept so orders that reference it stay valid,
    * but it disappears from every list. Its name, url and SKU are freed so a
    * new product can reuse them. Images are kept (orders show the cover).
    */
@@ -355,6 +356,7 @@ export class ProductService {
       minPrice,
       maxPrice,
       inStock,
+      minRating,
       sort = 'newest',
       page = 1,
       offset = 10,
@@ -384,6 +386,7 @@ export class ProductService {
         minPrice !== undefined ? { salePrice: { gte: minPrice } } : {},
         maxPrice !== undefined ? { salePrice: { lte: maxPrice } } : {},
         inStock ? { stock: { gt: 0 } } : {},
+        minRating !== undefined ? { ratingAverage: { gte: minRating } } : {},
       ],
     };
 

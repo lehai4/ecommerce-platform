@@ -2,6 +2,8 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
 import OrderDetailView from "@/components/order/OrderDetailView";
+import PaymentCard from "@/components/order/PaymentCard";
+import OrderReviewsCard from "@/components/review/OrderReviewsCard";
 import OrderStatusTag from "@/components/order/OrderStatusTag";
 import { ORDER_STATUS_META } from "@/constants/order";
 import { useAppSelector } from "@/hook/useHookRedux";
@@ -85,7 +87,15 @@ const MyOrderDetail = () => {
         }
       />
       {order ? (
-        <OrderDetailView order={order} />
+        <OrderDetailView
+          order={order}
+          aside={
+            <>
+              <PaymentCard order={order} />
+              {order.status === "DELIVERED" && <OrderReviewsCard order={order} />}
+            </>
+          }
+        />
       ) : (
         <Card>
           <Skeleton active paragraph={{ rows: 6 }} />

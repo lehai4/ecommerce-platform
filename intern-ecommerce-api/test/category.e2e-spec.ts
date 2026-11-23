@@ -44,7 +44,7 @@ describe('CategoryController (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.user.deleteMany();
-    await prisma.purchase.deleteMany();
+    await prisma.order.deleteMany();
     await prisma.product.deleteMany();
     await prisma.category.deleteMany();
     categoryIds = [];

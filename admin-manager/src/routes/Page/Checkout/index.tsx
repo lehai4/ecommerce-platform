@@ -1,17 +1,15 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
-import { formatMoney, pictureUrl } from "@/constants/order";
-import { useAppDispatch, useAppSelector } from "@/hook/useHookRedux";
+import CartWarnings from "@/components/cart/CartWarnings";
+import { formatMoney, PAYMENT_METHOD_META, pictureUrl } from "@/constants/order";
+import { useCart } from "@/hook/useCart";
+import { useAppSelector } from "@/hook/useHookRedux";
 import { apiErrorMessage } from "@/lib/apiError";
-import {
-  clearAllCart,
-  deleteItemCart,
-  updateCartQuantity,
-} from "@/redux/slice/cartSlice";
-import type { Order } from "@/type";
+import type { Order, PaymentMethod } from "@/type";
 import { DeleteOutlined, ShoppingOutlined } from "@ant-design/icons";
 import {
+  Alert,
   Button,
   Card,
   Empty,
@@ -19,9 +17,11 @@ import {
   Image,
   Input,
   InputNumber,
+  Radio,
+  Skeleton,
   Typography,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -30,24 +30,15 @@ type FieldType = {
   phone: string;
   shippingAddress: string;
   note?: string;
+  paymentMethod: PaymentMethod;
 };
-
-const lineTotal = (item: {
-  basePrice: string;
-  discountPercentage?: number;
-  quantity?: number;
-}) =>
-  Number(item.basePrice) *
-  (1 - Number(item.discountPercentage ?? 0) / 100) *
-  Number(item.quantity ?? 1);
 
 const Checkout = () => {
   const [form] = Form.useForm<FieldType>();
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.login.currentUser);
-  const cartArr = useAppSelector((state) => state.cart.cartArr);
   const axiosAuth = AxiosJWTInstance({ user });
+  const { cart, loading, setQuantity, remove, acceptPrices, reload } = useCart();
   const [submitting, setSubmitting] = useState(false);
 
   // Pre-fill from the account profile
@@ -57,47 +48,37 @@ const Checkout = () => {
       .then(({ data }) => {
         form.setFieldsValue({
           customerName: form.getFieldValue("customerName") || data.name,
-          shippingAddress:
-            form.getFieldValue("shippingAddress") || data.address,
+          shippingAddress: form.getFieldValue("shippingAddress") || data.address,
         });
       })
       .catch(() => undefined);
   }, []);
 
-  const totals = useMemo(
-    () =>
-      cartArr.reduce(
-        (acc, item) => ({
-          subtotal:
-            acc.subtotal + Number(item.basePrice) * Number(item.quantity ?? 1),
-          total: acc.total + lineTotal(item),
-        }),
-        { subtotal: 0, total: 0 }
-      ),
-    [cartArr]
-  );
-
   const onFinish = async (values: FieldType) => {
     setSubmitting(true);
     try {
-      const { data } = await axiosAuth.post<Order>("/order", {
-        ...values,
-        items: cartArr.map((item) => ({
-          productId: item.id,
-          quantity: Number(item.quantity ?? 1),
-        })),
-      });
-      dispatch(clearAllCart());
+      const { data } = await axiosAuth.post<Order>("/order/checkout", values);
+      await reload();
       toast.success(`Order ${data.code} placed!`);
       navigate(`/orders/${data.id}`, { replace: true });
     } catch (error) {
       toast.error(apiErrorMessage(error));
+      // Stock or prices may have moved: show the fresh cart
+      reload();
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (cartArr.length === 0) {
+  if (!cart) {
+    return (
+      <Card>
+        <Skeleton active paragraph={{ rows: 6 }} />
+      </Card>
+    );
+  }
+
+  if (cart.items.length === 0) {
     return (
       <Card>
         <Helmet title="Checkout">
@@ -113,6 +94,10 @@ const Checkout = () => {
       </Card>
     );
   }
+
+  const priceChanged = cart.items.some((i) =>
+    i.warnings.some((w) => w.type === "PRICE_CHANGED")
+  );
 
   return (
     <>
@@ -132,6 +117,7 @@ const Checkout = () => {
             requiredMark="optional"
             onFinish={onFinish}
             disabled={submitting}
+            initialValues={{ paymentMethod: "COD" }}
           >
             <div className="grid gap-x-4 sm:grid-cols-2">
               <Form.Item<FieldType>
@@ -160,10 +146,7 @@ const Checkout = () => {
               label="Shipping address"
               rules={[{ required: true, message: "Please enter an address" }]}
             >
-              <Input.TextArea
-                rows={2}
-                placeholder="Street, ward, district, city"
-              />
+              <Input.TextArea rows={2} placeholder="Street, ward, district, city" />
             </Form.Item>
             <Form.Item<FieldType> name="note" label="Note for the shop">
               <Input.TextArea
@@ -173,22 +156,62 @@ const Checkout = () => {
                 placeholder="e.g. Call before delivering"
               />
             </Form.Item>
+            <Form.Item<FieldType> name="paymentMethod" label="Payment">
+              <Radio.Group className="!grid w-full gap-2 sm:grid-cols-2">
+                {(Object.keys(PAYMENT_METHOD_META) as PaymentMethod[]).map((m) => (
+                  <Radio
+                    key={m}
+                    value={m}
+                    className="!mr-0 rounded-lg border border-black/10 p-3"
+                  >
+                    <span className="flex flex-col">
+                      <Typography.Text strong>{PAYMENT_METHOD_META[m].label}</Typography.Text>
+                      <Typography.Text type="secondary" className="text-xs">
+                        {PAYMENT_METHOD_META[m].description}
+                      </Typography.Text>
+                    </span>
+                  </Radio>
+                ))}
+              </Radio.Group>
+            </Form.Item>
+            {!cart.canCheckout && (
+              <Alert
+                className="!mb-4"
+                type="error"
+                showIcon
+                message="Some items can't be ordered. Fix them in your cart first."
+              />
+            )}
             <Button
               type="primary"
               size="large"
               htmlType="submit"
               loading={submitting}
+              disabled={!cart.canCheckout || loading}
               block
             >
-              Place order · {formatMoney(totals.total)}
+              Place order · {formatMoney(cart.total)}
             </Button>
           </Form>
         </Card>
 
-        <Card title={`Your cart (${cartArr.length})`} className="lg:col-span-2">
+        <Card title={`Your cart (${cart.itemCount})`} className="lg:col-span-2">
+          {priceChanged && (
+            <Alert
+              className="!mb-3"
+              type="warning"
+              showIcon
+              message="Some prices changed since you added them."
+              action={
+                <Button size="small" onClick={acceptPrices}>
+                  OK
+                </Button>
+              }
+            />
+          )}
           <div className="flex flex-col divide-y divide-black/5">
-            {cartArr.map((item) => (
-              <div key={item.id} className="flex gap-3 py-3 first:pt-0">
+            {cart.items.map((item) => (
+              <div key={item.productId} className="flex gap-3 py-3 first:pt-0">
                 <Image
                   src={pictureUrl(item.picture)}
                   width={56}
@@ -207,25 +230,23 @@ const Checkout = () => {
                       danger
                       aria-label={`Remove ${item.name}`}
                       icon={<DeleteOutlined />}
-                      onClick={() => dispatch(deleteItemCart(item))}
+                      disabled={loading}
+                      onClick={() => remove(item.productId)}
                     />
                   </div>
+                  <CartWarnings warnings={item.warnings} />
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <InputNumber
                       size="small"
                       min={1}
-                      max={Math.max(1, Math.min(100, Number(item.stock) || 100))}
-                      value={Number(item.quantity ?? 1)}
+                      max={100}
+                      value={item.quantity}
+                      disabled={loading}
                       onChange={(value) =>
-                        dispatch(
-                          updateCartQuantity({
-                            id: item.id,
-                            quantity: Number(value) || 1,
-                          })
-                        )
+                        value && value !== item.quantity && setQuantity(item.productId, value)
                       }
                     />
-                    <Typography.Text>{formatMoney(lineTotal(item))}</Typography.Text>
+                    <Typography.Text>{formatMoney(item.lineTotal)}</Typography.Text>
                   </div>
                 </div>
               </div>
@@ -234,23 +255,20 @@ const Checkout = () => {
           <div className="mt-2 flex flex-col gap-1 border-t border-black/5 pt-4">
             <div className="flex justify-between">
               <Typography.Text type="secondary">Subtotal</Typography.Text>
-              <Typography.Text>{formatMoney(totals.subtotal)}</Typography.Text>
+              <Typography.Text>{formatMoney(cart.subtotal)}</Typography.Text>
             </div>
             <div className="flex justify-between">
               <Typography.Text type="secondary">Discount</Typography.Text>
               <Typography.Text type="success">
-                −{formatMoney(totals.subtotal - totals.total)}
+                −{formatMoney(cart.discountTotal)}
               </Typography.Text>
             </div>
             <div className="mt-1 flex justify-between">
               <Typography.Text strong>Total</Typography.Text>
               <Typography.Text strong className="text-[18px]">
-                {formatMoney(totals.total)}
+                {formatMoney(cart.total)}
               </Typography.Text>
             </div>
-            <Typography.Text type="secondary" className="mt-2 text-xs">
-              Final prices and stock are checked again when you place the order.
-            </Typography.Text>
           </div>
         </Card>
       </div>

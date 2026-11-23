@@ -13,7 +13,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { IsAdmin } from 'src/common/decorators/is-admin.decorator';
 import { CancelOrderDto } from './dto/cancel-order.dto';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CheckoutDto, CreateOrderDto } from './dto/create-order.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { FindOrdersDto } from './dto/find-orders.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderService } from './order.service';
@@ -32,6 +33,13 @@ export class OrderController {
   create(@Req() request: Request, @Body() dto: CreateOrderDto) {
     const { userId } = request.user as AuthUser;
     return this.orderService.create(userId, dto);
+  }
+
+  @ApiOperation({ summary: 'Places an order with the items of my cart, then empties it' })
+  @Post('checkout')
+  checkout(@Req() request: Request, @Body() dto: CheckoutDto) {
+    const { userId } = request.user as AuthUser;
+    return this.orderService.checkout(userId, dto);
   }
 
   @ApiOperation({ summary: 'Admin lists all orders (filter by status, search)' })
@@ -60,6 +68,25 @@ export class OrderController {
   findOne(@Req() request: Request, @Param('id', ParseUUIDPipe) id: string) {
     const { userId, userRole } = request.user as AuthUser;
     return this.orderService.findOne(id, userId, userRole);
+  }
+
+  @ApiOperation({ summary: 'How to pay the order (bank transfer QR, status)' })
+  @Get(':id/payment')
+  payment(@Req() request: Request, @Param('id', ParseUUIDPipe) id: string) {
+    const { userId, userRole } = request.user as AuthUser;
+    return this.orderService.payment(id, userId, userRole);
+  }
+
+  @ApiOperation({ summary: 'Admin records payment received, refunded or unpaid' })
+  @IsAdmin()
+  @Patch(':id/payment')
+  updatePayment(
+    @Req() request: Request,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePaymentDto,
+  ) {
+    const { userId } = request.user as AuthUser;
+    return this.orderService.updatePayment(id, dto, userId);
   }
 
   @ApiOperation({ summary: 'Admin changes the order status' })

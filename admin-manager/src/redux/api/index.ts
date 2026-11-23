@@ -1,4 +1,4 @@
-import { Token } from "@/type";
+import { ProductReviews, Token } from "@/type";
 import { toast } from "react-toastify";
 import {
   logOutFailure,
@@ -36,20 +36,6 @@ export async function getAllCategory() {
     console.log(err);
   }
 }
-export async function getAllPurchase({ user }: { user: any }) {
-  try {
-    const res = await axiosAuth("/purchase/admin", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${user?.accessToken}`,
-      },
-    });
-    return res.data;
-  } catch (err) {
-    console.log(err);
-  }
-}
 export async function getProductByName({ name }: { name: string }) {
   return await axiosAuth(`/product/${name}`, {
     method: "GET",
@@ -57,6 +43,17 @@ export async function getProductByName({ name }: { name: string }) {
       "Content-Type": "application/json",
     },
   }).then((data) => data);
+}
+/** Public reviews of a product, with the rating summary */
+export async function getProductReviews(
+  productId: string,
+  params: { rating?: number; page?: number; offset?: number }
+) {
+  const { data } = await axiosAuth.get<ProductReviews>(
+    `/review/product/${productId}`,
+    { params }
+  );
+  return data;
 }
 export async function getCategoryByName({ name }: { name: string }) {
   return await axiosAuth(`/category/${name}`, {

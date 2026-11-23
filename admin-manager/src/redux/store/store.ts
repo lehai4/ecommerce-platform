@@ -1,7 +1,7 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import authReducer from "../slice/authSlice";
-import cartReducer from "../slice/cartSlice";
 import {
+  createMigrate,
   persistStore,
   persistReducer,
   FLUSH,
@@ -15,12 +15,22 @@ import storage from "redux-persist/lib/storage";
 
 const persistConfig = {
   key: "root",
-  version: 1,
+  // v2: the cart moved to the server, drop the old local one
+  version: 2,
   storage,
+  migrate: createMigrate(
+    {
+      2: (state: any) => {
+        if (!state) return state;
+        const { cart: _dropped, ...rest } = state;
+        return rest;
+      },
+    },
+    { debug: false }
+  ),
 };
 const rootReducer = combineReducers({
   auth: authReducer,
-  cart: cartReducer,
 });
 const persistedReducer = persistReducer<ReturnType<typeof rootReducer>>(
   persistConfig,

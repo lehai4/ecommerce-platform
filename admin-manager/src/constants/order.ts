@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@/type";
+import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/type";
 
 export const ORDER_STATUSES: OrderStatus[] = [
   "PENDING",
@@ -74,3 +74,14 @@ export const formatDateTime = (value: string) =>
 
 
 export { FALLBACK_IMAGE, pictureUrl } from "@/lib/image";
+
+export const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; description: string }> = {
+  COD: { label: "Cash on delivery", description: "Pay the courier when the order arrives" },
+  BANK_TRANSFER: { label: "Bank transfer", description: "Transfer with the QR code, the shop confirms it" },
+};
+
+export const PAYMENT_STATUS_META: Record<PaymentStatus, { label: string; color: string }> = {
+  UNPAID: { label: "Unpaid", color: "default" },
+  PAID: { label: "Paid", color: "green" },
+  REFUNDED: { label: "Refunded", color: "volcano" },
+};

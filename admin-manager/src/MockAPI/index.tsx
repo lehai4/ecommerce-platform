@@ -6,6 +6,7 @@ import {
   ShoppingCartOutlined,
   DatabaseOutlined,
   TeamOutlined,
+  StarOutlined,
 } from "@ant-design/icons";
 
 export const routerAdmin = [
@@ -44,6 +45,12 @@ export const routerAdmin = [
     path: "/customer",
     content: "Customers",
     icon: <TeamOutlined />,
+  },
+  {
+    id: 6,
+    path: "/review",
+    content: "Reviews",
+    icon: <StarOutlined />,
   },
 ];
 export const routerUser = [

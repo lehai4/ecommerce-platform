@@ -20,8 +20,6 @@ export { default as ProductDetailSlug } from "./Page/Product/ProductDetail/Produ
 export { default as Profile } from "./Page/Profile";
 export { default as UpdateProfile } from "./Page/Profile/UpdateProfile";
 
-export { default as PurChase } from "./Page/Purchase";
-export { default as ReviewPurchase } from "./Page/Purchase/ReviewPurchase";
 
 export { default as OrderList } from "./Page/Order/OrderList";
 export { default as OrderDetail } from "./Page/Order/OrderDetail";
@@ -30,5 +28,6 @@ export { default as MyOrders } from "./Page/MyOrders";
 export { default as MyOrderDetail } from "./Page/MyOrders/MyOrderDetail";
 
 export { default as Inventory } from "./Page/Inventory";
+export { default as ReviewList } from "./Page/Review";
 export { default as CustomerList } from "./Page/Customer/CustomerList";
 export { default as CustomerDetail } from "./Page/Customer/CustomerDetail";

@@ -164,7 +164,7 @@ export default function Index() {
             />
           )}
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <KpiCard
               title="Revenue"
               hint="Total of delivered orders"
@@ -204,6 +204,20 @@ export default function Index() {
               value={data.kpis.newCustomers}
               previous={data.previous.newCustomers}
               format={count}
+            />
+            <KpiCard
+              title="Collected"
+              hint="Orders placed in this period that are paid"
+              value={data.kpis.collected}
+              previous={data.previous.collected}
+              format={formatMoney}
+            />
+            <KpiCard
+              title="Outstanding"
+              hint="Open orders placed in this period that are not paid yet"
+              value={data.kpis.outstanding}
+              previous={data.previous.outstanding}
+              format={formatMoney}
             />
           </div>
 

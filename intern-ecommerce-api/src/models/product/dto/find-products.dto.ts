@@ -22,6 +22,7 @@ export const PRODUCT_SORTS = [
   'name_asc',
   'name_desc',
   'best_selling',
+  'rating_desc',
 ] as const;
 export type ProductSort = typeof PRODUCT_SORTS[number];
 
@@ -63,6 +64,16 @@ export class FindProductsDto {
   @IsNumber()
   @Min(0)
   maxPrice?: number;
+
+  /** Only products rated at least this many stars (visible reviews)
+   * @example 4
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(5)
+  minRating?: number;
 
   /** Only products with stock > 0 */
   @IsOptional()

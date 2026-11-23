@@ -11,44 +11,38 @@ import {
   Skeleton,
   Space,
   Statistic,
+  Rate,
   Tag,
   Typography,
 } from "antd";
 import {
   ArrowLeftOutlined,
   ShoppingCartOutlined,
-  StarOutlined,
 } from "@ant-design/icons";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useAppDispatch } from "@/hook/useHookRedux";
-import { AddToCart } from "@/redux/slice/cartSlice";
+import { useCart } from "@/hook/useCart";
+import ProductReviews from "@/components/review/ProductReviews";
 
 
 const ProductDetailSlug = () => {
   const params = useParams();
   const navigate = useNavigate();
-  const dispath = useAppDispatch();
+  const { add, loading: cartLoading } = useCart();
   const [product, setProduct] = useState<ProductProps>();
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImage, setActiveImage] = useState(0);
   const gallery = (product?.images ?? []).map((image) => image.url);
-  const handleReview = () => {
-    toast.info("Thanks you because seen product!");
-  };
 
   const onChange = (value: number | null) => {
     setQuantity(value as number);
   };
-  const handleAddToCart = () => {
-    dispath(
-      AddToCart({
-        ...product,
-        quantity: quantity,
-      })
-    );
-    toast.success("Add Product to Cart sucessfully!");
+  const handleAddToCart = async () => {
+    if (!product) return;
+    if (await add(product.id, quantity || 1)) {
+      toast.success("Added to cart");
+    }
   };
   useEffect(() => {
     let mounted = true;
@@ -60,7 +54,7 @@ const ProductDetailSlug = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [params.name]);
   const inStock = !!product?.stock && product.stock > 0;
 
   return (
@@ -140,6 +134,15 @@ const ProductDetailSlug = () => {
               <Typography.Title level={2} style={{ margin: 0 }}>
                 {product.name}
               </Typography.Title>
+              {!!product.ratingCount && (
+                <a href="#reviews" className="mt-2 flex items-center gap-2">
+                  <Rate disabled allowHalf value={product.ratingAverage} className="!text-sm" />
+                  <Typography.Text type="secondary">
+                    {product.ratingAverage?.toFixed(1)} · {product.ratingCount} review
+                    {product.ratingCount === 1 ? "" : "s"}
+                  </Typography.Text>
+                </a>
+              )}
               <Statistic
                 value={product.salePrice ?? product.basePrice}
                 precision={2}
@@ -156,7 +159,7 @@ const ProductDetailSlug = () => {
                 <InputNumber
                   size="large"
                   min={1}
-                  max={10}
+                  max={Math.max(1, Math.min(100, product.stock))}
                   value={quantity}
                   onChange={onChange}
                 />
@@ -167,23 +170,21 @@ const ProductDetailSlug = () => {
                   size="large"
                   icon={<ShoppingCartOutlined />}
                   onClick={handleAddToCart}
+                  loading={cartLoading}
                   disabled={!inStock}
                   block
                 >
                   Add to cart
                 </Button>
-                <Button
-                  size="large"
-                  icon={<StarOutlined />}
-                  onClick={handleReview}
-                  block
-                >
-                  Review
-                </Button>
               </div>
             </div>
           </div>
         </Card>
+      )}
+      {product && (
+        <div id="reviews">
+          <ProductReviews productId={product.id} />
+        </div>
       )}
     </>
   );

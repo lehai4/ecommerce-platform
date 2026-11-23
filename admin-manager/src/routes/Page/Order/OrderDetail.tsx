@@ -2,6 +2,7 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
 import OrderDetailView from "@/components/order/OrderDetailView";
+import PaymentCard from "@/components/order/PaymentCard";
 import OrderStatusTag from "@/components/order/OrderStatusTag";
 import {
   ORDER_ACTION_LABEL,
@@ -102,7 +103,10 @@ const OrderDetail = () => {
         ))}
       />
       {order ? (
-        <OrderDetailView order={order} />
+        <OrderDetailView
+          order={order}
+          aside={<PaymentCard order={order} admin onOrderChange={setOrder} />}
+        />
       ) : (
         <Card>
           <Skeleton active paragraph={{ rows: 6 }} />

@@ -18,7 +18,7 @@ const Authentication = () => {
               System Management
             </h2>
             <p className="mt-3 text-indigo-100">
-              Manage products, categories and purchases in one place.
+              Manage products, categories and orders in one place.
             </p>
           </div>
         </div>

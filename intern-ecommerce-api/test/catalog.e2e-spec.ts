@@ -46,7 +46,6 @@ describe('Catalog (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.purchase.deleteMany();
     await prisma.order.deleteMany();
     await prisma.product.deleteMany();
     await prisma.category.deleteMany();

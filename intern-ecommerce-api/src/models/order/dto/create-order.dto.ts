@@ -1,8 +1,11 @@
+import { OmitType } from '@nestjs/swagger';
+import { PaymentMethod } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -74,4 +77,14 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** COD (cash on delivery, default) or BANK_TRANSFER
+   * @example "COD"
+   */
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
 }
+
+/** Place an order with the items of the signed-in user's cart */
+export class CheckoutDto extends OmitType(CreateOrderDto, ['items'] as const) {}

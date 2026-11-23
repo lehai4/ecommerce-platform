@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import {
   OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
   Prisma,
   ProductStatus,
   Role,
@@ -14,11 +16,23 @@ import {
 import { randomBytes } from 'crypto';
 import currency from 'currency.js';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CartService } from '../cart/cart.service';
+import { CheckoutDto, CreateOrderDto } from './dto/create-order.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { FindOrdersDto } from './dto/find-orders.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { canTransition, ORDER_STATUS_TRANSITIONS } from './order-status';
 import { recordStockMovement } from '../stock/record-stock-movement';
+
+/** Bank account for transfers, from env (VietQR bank id or BIN, e.g. "VCB" or "970436") */
+function bankTransferConfig() {
+  const bankId = process.env.BANK_ID?.trim() ?? '';
+  const accountNo = process.env.BANK_ACCOUNT_NO?.trim() ?? '';
+  const accountName = process.env.BANK_ACCOUNT_NAME?.trim() ?? '';
+  /** Multiplier from order prices to the transfer currency (e.g. USD -> VND) */
+  const rate = Number(process.env.BANK_TRANSFER_RATE) || 1;
+  return { bankId, accountNo, accountName, rate, configured: !!(bankId && accountNo) };
+}
 
 /** What is returned for every order */
 const orderInclude = {
@@ -48,7 +62,10 @@ export interface Paginated<T> {
 /** Manages customer orders: checkout, stock and status tracking */
 @Injectable()
 export class OrderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cartService: CartService,
+  ) {}
 
   /** Places an order for the logged user.
    *
@@ -129,6 +146,7 @@ export class OrderService {
           phone: dto.phone.trim(),
           shippingAddress: dto.shippingAddress.trim(),
           note: dto.note?.trim() || null,
+          paymentMethod: dto.paymentMethod ?? PaymentMethod.COD,
           subtotal: subtotal.value,
           discountTotal: subtotal.subtract(total).value,
           total: total.value,
@@ -155,12 +173,21 @@ export class OrderService {
 
   /** Lists orders with filters and pagination. Pass `userId` to only list one user's orders. */
   async findAll(
-    { status, search, page = 1, offset = 10 }: FindOrdersDto,
+    {
+      status,
+      paymentStatus,
+      paymentMethod,
+      search,
+      page = 1,
+      offset = 10,
+    }: FindOrdersDto,
     userId?: string,
   ): Promise<Paginated<Prisma.OrderGetPayload<{ include: typeof orderListInclude }>>> {
     const term = search?.trim();
     const where: Prisma.OrderWhereInput = {
       status,
+      paymentStatus,
+      paymentMethod,
       userId,
       ...(term && {
         OR: [
@@ -251,6 +278,89 @@ export class OrderService {
     return this.changeStatus(id, OrderStatus.CANCELLED, userId, note);
   }
 
+  /** Places an order with the items of the user's cart, then empties the cart */
+  async checkout(userId: string, dto: CheckoutDto): Promise<OrderWithDetails> {
+    const items = await this.cartService.checkoutItems(userId);
+    const order = await this.create(userId, { ...dto, items });
+    await this.cartService.clearForUser(userId);
+    return order;
+  }
+
+  /** How to pay an order: amount, status and, for bank transfers, the QR code */
+  async payment(id: string, userId: string, userRole: string) {
+    const order = await this.findOne(id, userId, userRole);
+    const bank = bankTransferConfig();
+    const amount = Math.round(Number(order.total) * bank.rate);
+
+    return {
+      orderId: order.id,
+      code: order.code,
+      method: order.paymentMethod,
+      status: order.paymentStatus,
+      paidAt: order.paidAt,
+      total: order.total,
+      bankTransfer:
+        order.paymentMethod === PaymentMethod.BANK_TRANSFER
+          ? {
+              configured: bank.configured,
+              bankId: bank.bankId,
+              accountNo: bank.accountNo,
+              accountName: bank.accountName,
+              amount,
+              /** Must be written in the transfer message so the shop can match it */
+              content: order.code,
+              qrUrl: bank.configured
+                ? `https://img.vietqr.io/image/${encodeURIComponent(bank.bankId)}-${encodeURIComponent(
+                    bank.accountNo,
+                  )}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
+                    order.code,
+                  )}&accountName=${encodeURIComponent(bank.accountName)}`
+                : null,
+            }
+          : null,
+    };
+  }
+
+  /** Admin records the payment (money received, refunded, or a correction) */
+  async updatePayment(
+    id: string,
+    dto: UpdatePaymentDto,
+    adminId: string,
+  ): Promise<OrderWithDetails> {
+    const order = await this.prisma.order.findUnique({ where: { id } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.paymentStatus === dto.status) {
+      throw new BadRequestException(`Payment is already ${dto.status}`);
+    }
+    if (dto.status === PaymentStatus.REFUNDED && order.paymentStatus !== PaymentStatus.PAID) {
+      throw new BadRequestException('Only a paid order can be refunded');
+    }
+
+    const label = { PAID: 'received', UNPAID: 'marked as unpaid', REFUNDED: 'refunded' }[
+      dto.status
+    ];
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        paymentStatus: dto.status,
+        paidAt:
+          dto.status === PaymentStatus.PAID
+            ? new Date()
+            : dto.status === PaymentStatus.UNPAID
+            ? null
+            : undefined,
+        history: {
+          create: {
+            status: order.status,
+            note: [`Payment ${label}`, dto.note?.trim()].filter(Boolean).join(': '),
+            changedById: adminId,
+          },
+        },
+      },
+      include: orderInclude,
+    });
+  }
+
   /** Changes status, records history and restores stock on cancellation */
   private async changeStatus(
     id: string,
@@ -295,10 +405,17 @@ export class OrderService {
         }
       }
 
+      // Cash on delivery: the money is collected when the order is delivered
+      const codPaid =
+        status === OrderStatus.DELIVERED &&
+        order.paymentMethod === PaymentMethod.COD &&
+        order.paymentStatus === PaymentStatus.UNPAID;
+
       return tx.order.update({
         where: { id },
         data: {
           status,
+          ...(codPaid && { paymentStatus: PaymentStatus.PAID, paidAt: new Date() }),
           history: {
             create: { status, note: note?.trim() || null, changedById },
           },

@@ -8,13 +8,16 @@ import {
   formatMoney,
   ORDER_STATUS_META,
   ORDER_STATUSES,
+  PAYMENT_STATUS_META,
 } from "@/constants/order";
+import PaymentTag from "@/components/order/PaymentTag";
 import { useAppSelector } from "@/hook/useHookRedux";
 import type {
   OrderListItem,
   OrderStatus,
   OrderStatusSummary,
   Paginated,
+  PaymentStatus,
 } from "@/type";
 import { EyeOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import {
@@ -22,6 +25,7 @@ import {
   Button,
   Card,
   Input,
+  Select,
   Table,
   TableColumnsType,
   Tabs,
@@ -44,6 +48,8 @@ const OrderList = () => {
   const [params, setParams] = useSearchParams();
   const status = (params.get("status") as TabKey) || "ALL";
   const page = Number(params.get("page")) || 1;
+  const paymentStatus = params.get("paymentStatus") || undefined;
+  const paymentMethod = params.get("paymentMethod") || undefined;
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [debouncedSearch] = useDebounce(search.trim(), 400);
 
@@ -68,6 +74,8 @@ const OrderList = () => {
           offset: PAGE_SIZE,
           status: status === "ALL" ? undefined : status,
           search: debouncedSearch || undefined,
+          paymentStatus,
+          paymentMethod,
         },
       }),
       axiosAuth.get<OrderStatusSummary[]>("/order/admin/summary"),
@@ -78,7 +86,7 @@ const OrderList = () => {
       })
       .catch((error) => toast.error(error.message))
       .finally(() => setLoading(false));
-  }, [page, status, debouncedSearch]);
+  }, [page, status, debouncedSearch, paymentStatus, paymentMethod]);
 
   useEffect(load, [load]);
 
@@ -146,6 +154,14 @@ const OrderList = () => {
       render: (s: OrderStatus) => <OrderStatusTag status={s} />,
     },
     {
+      title: "Payment",
+      dataIndex: "paymentStatus",
+      width: 110,
+      render: (_: PaymentStatus, order) => (
+        <PaymentTag method={order.paymentMethod} status={order.paymentStatus} />
+      ),
+    },
+    {
       title: "",
       key: "actions",
       align: "right",
@@ -199,13 +215,36 @@ const OrderList = () => {
             ),
           }))}
         />
-        <div className="mb-4 max-w-sm">
+        <div className="mb-4 flex flex-wrap gap-2">
           <Input
             allowClear
             prefix={<SearchOutlined />}
             placeholder="Search code, customer or phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            className="w-full sm:w-72"
+          />
+          <Select
+            allowClear
+            placeholder="Payment"
+            value={paymentStatus}
+            onChange={(v) => updateParams({ paymentStatus: v, page: undefined })}
+            options={(["UNPAID", "PAID", "REFUNDED"] as PaymentStatus[]).map((v) => ({
+              value: v,
+              label: PAYMENT_STATUS_META[v].label,
+            }))}
+            className="w-[calc(50%-4px)] sm:w-36"
+          />
+          <Select
+            allowClear
+            placeholder="Method"
+            value={paymentMethod}
+            onChange={(v) => updateParams({ paymentMethod: v, page: undefined })}
+            options={[
+              { value: "COD", label: "Cash on delivery" },
+              { value: "BANK_TRANSFER", label: "Bank transfer" },
+            ]}
+            className="w-[calc(50%-4px)] sm:w-44"
           />
         </div>
         <Table

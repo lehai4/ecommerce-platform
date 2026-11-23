@@ -12,9 +12,12 @@
  */
 import {
   OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
   Prisma,
   PrismaClient,
   ProductStatus,
+  ReviewStatus,
   Role,
   StockReason,
 } from '@prisma/client';
@@ -214,6 +217,7 @@ async function create() {
   // Write orders and their history; stock movements are collected and written after
   type StockEvent = { at: number; index: number; change: number; reason: StockReason; orderId: string; userId: string | null };
   const events: StockEvent[] = [];
+  const reviewCandidates: { productId: string; userId: string; orderId: string; deliveredAt: number }[] = [];
   let written = 0;
   for (const o of planned) {
     const items = o.lines.map((l) => {
@@ -243,11 +247,20 @@ async function create() {
     const date = new Date(o.at);
     const code = `DM-${String(date.getFullYear() % 100).padStart(2, '0')}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}-${String(++written).padStart(4, '0')}`;
 
+    // ~30% pay by bank transfer (paid before being confirmed); COD is paid on delivery
+    const transfer = random() < 0.3;
+    const paid =
+      o.status !== OrderStatus.CANCELLED &&
+      (o.status === OrderStatus.DELIVERED || (transfer && o.status !== OrderStatus.PENDING));
+
     const order = await prisma.order.create({
       data: {
         code,
         userId: o.customer.id,
         status: o.status,
+        paymentMethod: transfer ? PaymentMethod.BANK_TRANSFER : PaymentMethod.COD,
+        paymentStatus: paid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+        paidAt: paid ? new Date(o.at + (o.status === OrderStatus.DELIVERED && !transfer ? (flow.length - 1) * DAY * 0.8 : 2 * 60 * 60 * 1000)) : null,
         customerName: o.customer.name ?? 'Khách demo',
         phone: phones.get(o.customer.id) ?? '0900000000',
         shippingAddress: o.customer.address ?? pick(STREETS),
@@ -277,12 +290,66 @@ async function create() {
       },
     });
 
+    if (o.status === OrderStatus.DELIVERED) {
+      for (const l of o.lines) {
+        reviewCandidates.push({
+          productId: products[l.index].id,
+          userId: o.customer.id,
+          orderId: order.id,
+          deliveredAt: o.at + (flow.length - 1) * DAY * 0.8,
+        });
+      }
+    }
     for (const l of o.lines) {
       events.push({ at: o.at, index: l.index, change: -l.quantity, reason: StockReason.SALE, orderId: order.id, userId: o.customer.id });
       if (o.cancelledAt) {
         events.push({ at: o.cancelledAt, index: l.index, change: l.quantity, reason: StockReason.ORDER_CANCELLED, orderId: order.id, userId: null });
       }
     }
+  }
+
+  // Reviews: about 45% of delivered products get one
+  const COMMENTS: Record<number, string[]> = {
+    5: ['Rất hài lòng, sẽ mua lại!', 'Chất lượng tốt, giao hàng nhanh.', 'Đúng mô tả, đóng gói cẩn thận.', 'Tuyệt vời, đáng tiền.'],
+    4: ['Sản phẩm tốt, giá hợp lý.', 'Ổn, giao hơi chậm một chút.', 'Dùng ổn, sẽ giới thiệu bạn bè.'],
+    3: ['Tạm được so với giá.', 'Bình thường, không có gì đặc biệt.'],
+    2: ['Chất lượng chưa như mong đợi.', 'Giao hàng chậm, hộp bị móp.'],
+    1: ['Sản phẩm lỗi, cần đổi trả.', 'Không giống hình.'],
+  };
+  const REPLIES = ['Cảm ơn bạn đã ủng hộ shop!', 'Shop rất tiếc về trải nghiệm này, vui lòng inbox để được hỗ trợ đổi trả.', 'Cảm ơn góp ý của bạn, shop sẽ cải thiện.'];
+  const reviews = [];
+  for (const r of reviewCandidates) {
+    if (random() > 0.45) continue;
+    const roll = random();
+    const rating = roll < 0.5 ? 5 : roll < 0.8 ? 4 : roll < 0.92 ? 3 : roll < 0.97 ? 2 : 1;
+    const at = new Date(Math.min(r.deliveredAt + between(1, 72) * 60 * 60 * 1000, now - 60 * 1000));
+    const replied = rating <= 2 || random() < 0.25;
+    reviews.push({
+      productId: r.productId,
+      userId: r.userId,
+      orderId: r.orderId,
+      rating,
+      comment: random() < 0.8 ? pick(COMMENTS[rating]) : null,
+      status: rating === 1 && random() < 0.5 ? ReviewStatus.HIDDEN : ReviewStatus.VISIBLE,
+      reply: replied ? pick(rating <= 2 ? REPLIES.slice(1) : REPLIES.slice(0, 1)) : null,
+      repliedAt: replied ? new Date(Math.min(at.getTime() + 6 * 60 * 60 * 1000, now)) : null,
+      createdAt: at,
+    });
+  }
+  await prisma.review.createMany({ data: reviews });
+  for (const p of products) {
+    const stats = await prisma.review.aggregate({
+      where: { productId: p.id, status: ReviewStatus.VISIBLE },
+      _avg: { rating: true },
+      _count: { _all: true },
+    });
+    await prisma.product.update({
+      where: { id: p.id },
+      data: {
+        ratingAverage: Math.round((stats._avg.rating ?? 0) * 10) / 10,
+        ratingCount: stats._count._all,
+      },
+    });
   }
 
   // Stock history in time order, so "stock after" is right at every point
@@ -304,7 +371,7 @@ async function create() {
 
   console.log(
     `Created demo data: ${CATEGORIES.length} categories, ${products.length} products, ` +
-      `${customers.length} customers, ${planned.length} orders over ${DAYS_OF_ORDERS} days`,
+      `${customers.length} customers, ${planned.length} orders over ${DAYS_OF_ORDERS} days, ${reviews.length} reviews`,
   );
 }
 
