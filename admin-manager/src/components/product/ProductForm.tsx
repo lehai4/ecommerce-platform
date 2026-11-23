@@ -16,6 +16,8 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import AdjustStockModal from "@/components/stock/AdjustStockModal";
+import { SwapOutlined } from "@ant-design/icons";
 import ProductImagesManager from "./ProductImagesManager";
 
 export type ProductFormValues = {
@@ -67,6 +69,7 @@ const ProductForm = ({
   const axiosAuth = AxiosJWTInstance({ user });
   const [categories, setCategories] = useState<Category[]>([]);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [adjusting, setAdjusting] = useState(false);
   const {
     token: { colorBgLayout },
   } = theme.useToken();
@@ -100,9 +103,12 @@ const ProductForm = ({
       layout="vertical"
       requiredMark="optional"
       initialValues={toValues(product)}
-      onFinish={(values) =>
-        onSubmit({ ...values, sku: values.sku?.trim() || null }, pendingImages)
-      }
+      onFinish={(values) => {
+        const cleaned = { ...values, sku: values.sku?.trim() || null };
+        // Stock of a saved product only changes through Adjust (stock history)
+        if (product) delete (cleaned as Partial<ProductFormValues>).stock;
+        onSubmit(cleaned, pendingImages);
+      }}
       disabled={submitting}
       autoComplete="off"
     >
@@ -177,13 +183,37 @@ const ProductForm = ({
                 name="stock"
                 label="Stock"
                 rules={[{ required: true, message: "Please enter the stock" }]}
+                tooltip={
+                  product
+                    ? "Use Adjust so every change is kept in the stock history"
+                    : undefined
+                }
               >
-                <InputNumber
-                  size="large"
-                  min={0}
-                  precision={0}
-                  style={{ width: "100%" }}
-                />
+                {product ? (
+                  <Space.Compact style={{ width: "100%" }}>
+                    <InputNumber
+                      size="large"
+                      value={product.stock}
+                      disabled
+                      style={{ width: "100%" }}
+                    />
+                    <Button
+                      size="large"
+                      icon={<SwapOutlined />}
+                      onClick={() => setAdjusting(true)}
+                      disabled={false}
+                    >
+                      Adjust
+                    </Button>
+                  </Space.Compact>
+                ) : (
+                  <InputNumber
+                    size="large"
+                    min={0}
+                    precision={0}
+                    style={{ width: "100%" }}
+                  />
+                )}
               </Form.Item>
             </div>
             <div className="flex items-center justify-between rounded-lg bg-black/[0.03] px-4 py-3">
@@ -255,6 +285,14 @@ const ProductForm = ({
           </Button>
         </Space>
       </div>
+      <AdjustStockModal
+        product={adjusting && product ? product : undefined}
+        onClose={() => setAdjusting(false)}
+        onDone={(stock) => {
+          form.setFieldValue("stock", stock);
+          if (product) onProductChange?.({ ...product, stock });
+        }}
+      />
     </Form>
   );
 };

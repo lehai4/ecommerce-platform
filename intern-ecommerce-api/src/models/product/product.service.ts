@@ -4,12 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus, StockReason } from '@prisma/client';
 import currency from 'currency.js';
 import { ProductNameInUseException } from 'src/common/exceptions/product/product-name-in-use.exception';
 import { ImageStorageService } from 'src/common/image-storage/image-storage.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { slugify } from 'src/util/slugify';
+import { recordStockMovement } from '../stock/record-stock-movement';
 import { CreateProductDto } from './dto/create-product.dto';
 import {
   AdminFindProductsDto,
@@ -64,11 +65,14 @@ export class ProductService {
   ) {}
 
   /** Creates a new product */
-  async create(createProductDto: CreateProductDto): Promise<Product> {
+  async create(
+    createProductDto: CreateProductDto,
+    userId?: string,
+  ): Promise<Product> {
     const { categories, sku, ...data } = createProductDto;
     await this.assertSkuFree(sku);
 
-    return this.prisma.product.create({
+    const product = await this.prisma.product.create({
       data: {
         ...data,
         sku: sku || null,
@@ -79,6 +83,14 @@ export class ProductService {
       },
       include: productInclude,
     });
+
+    await recordStockMovement(this.prisma, {
+      productId: product.id,
+      change: product.stock,
+      reason: StockReason.INITIAL,
+      userId,
+    });
+    return product;
   }
 
   /** Replaces the cover picture (first image). Kept for older clients. */
@@ -233,6 +245,7 @@ export class ProductService {
   async update(
     id: string,
     updateProductDto: UpdateProductDto,
+    userId?: string,
   ): Promise<Product> {
     const current = await this.findOneById(id);
     const { categories, sku, ...fields } = updateProductDto;
@@ -268,11 +281,23 @@ export class ProductService {
       };
     }
 
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data,
       include: productInclude,
     });
+
+    // Stock typed in the product form: keep a trace of the difference
+    if (fields.stock !== undefined && fields.stock !== current.stock) {
+      await recordStockMovement(this.prisma, {
+        productId: id,
+        change: fields.stock - (current.stock ?? 0),
+        reason: StockReason.ADJUSTMENT,
+        note: 'Changed in the product form',
+        userId,
+      });
+    }
+    return updated;
   }
 
   /** Changes the status of many products at once */

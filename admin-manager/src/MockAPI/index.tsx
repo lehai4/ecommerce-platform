@@ -4,13 +4,15 @@ import {
   ProductOutlined,
   ReadOutlined,
   ShoppingCartOutlined,
+  DatabaseOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 
 export const routerAdmin = [
   {
     id: 0,
     path: "/",
-    content: "Home",
+    content: "Dashboard",
     icon: <HomeOutlined />,
   },
   {
@@ -30,6 +32,18 @@ export const routerAdmin = [
     path: "/order",
     content: "Orders",
     icon: <ShoppingCartOutlined />,
+  },
+  {
+    id: 4,
+    path: "/inventory",
+    content: "Inventory",
+    icon: <DatabaseOutlined />,
+  },
+  {
+    id: 5,
+    path: "/customer",
+    content: "Customers",
+    icon: <TeamOutlined />,
   },
 ];
 export const routerUser = [

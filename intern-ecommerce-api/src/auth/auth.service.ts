@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserTokens } from '@prisma/client';
 import { compare } from 'bcrypt';
+import { AccountLockedException } from 'src/common/exceptions/user/account-locked.exception';
 import { accessJwtConfig, refreshJwtConfig } from 'src/config/jwt.config';
 import { User } from 'src/models/user/entities/user.entity';
 import { UserService } from 'src/models/user/user.service';
@@ -114,6 +115,9 @@ export class AuthService {
       const isPasswordValid = await compare(password, user.password);
 
       if (isPasswordValid) {
+        if (user.blockedAt) {
+          throw new AccountLockedException();
+        }
         return { ...user, password: undefined };
       }
     }
@@ -239,8 +243,12 @@ export class AuthService {
     return newRefreshToken;
   }
 
+  /** Role of the user; locked accounts cannot refresh their session */
   private async getUserRole(userId: string): Promise<string> {
     const user = await this.userService.findById(userId);
+    if (user.blockedAt) {
+      throw new AccountLockedException();
+    }
 
     return user.role;
   }

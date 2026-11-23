@@ -15,6 +15,9 @@ import ErrorPage from "./routes/ErrorPage";
 import {
   Authentication,
   CategoryList,
+  CustomerDetail,
+  CustomerList,
+  Inventory,
   Checkout,
   MyOrderDetail,
   MyOrders,
@@ -106,6 +109,21 @@ function App() {
         {
           path: "/order/:id",
           element: <OrderDetail />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/inventory",
+          element: <Inventory />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/customer",
+          element: <CustomerList />,
+          errorElement: <ErrorPage />,
+        },
+        {
+          path: "/customer/:id",
+          element: <CustomerDetail />,
           errorElement: <ErrorPage />,
         },
       ],

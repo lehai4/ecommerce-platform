@@ -225,3 +225,91 @@ export interface OrderStatusSummary {
   count: number;
   total: string;
 }
+
+// ---------- Dashboard ----------
+export interface DashboardKpis {
+  revenue: number;
+  sales: number;
+  orders: number;
+  averageOrderValue: number;
+  itemsSold: number;
+  newCustomers: number;
+}
+
+export interface DashboardData {
+  range: {
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    timezone: string;
+  };
+  kpis: DashboardKpis;
+  previous: DashboardKpis;
+  sales: { date: string; orders: number; revenue: number; sales: number }[];
+  ordersByStatus: { status: OrderStatus; count: number }[];
+  topProducts: {
+    productId: string | null;
+    name: string;
+    picture: string | null;
+    quantity: number;
+    revenue: number;
+  }[];
+  topCategories: { categoryId: string; name: string; quantity: number; revenue: number }[];
+  lowStock: { id: string; name: string; sku: string | null; picture: string | null; stock: number }[];
+  pendingOrders: number;
+}
+
+// ---------- Stock ----------
+export type StockReason =
+  | "INITIAL"
+  | "SALE"
+  | "ORDER_CANCELLED"
+  | "RESTOCK"
+  | "ADJUSTMENT";
+
+export interface StockMovement {
+  id: string;
+  productId: string;
+  change: number;
+  stockAfter: number;
+  reason: StockReason;
+  note: string | null;
+  createdAt: string;
+  product: { id: string; name: string; sku: string | null; picture: string | null };
+  user: { id: string; email: string; name: string | null } | null;
+  order: { id: string; code: string } | null;
+}
+
+// ---------- Customers ----------
+export interface CustomerListItem {
+  id: string;
+  email: string;
+  name: string | null;
+  address: string | null;
+  role: "USER" | "ADMIN";
+  createdAt: string;
+  blockedAt: string | null;
+  orders: number;
+  spent: number;
+  lastOrderAt: string | null;
+}
+
+export interface CustomerDetail extends Omit<CustomerListItem, "orders" | "spent" | "lastOrderAt"> {
+  stats: {
+    orders: number;
+    cancelledOrders: number;
+    spent: number;
+    averageOrderValue: number;
+    firstOrderAt: string | null;
+    lastOrderAt: string | null;
+  };
+  addresses: {
+    customerName: string;
+    phone: string;
+    shippingAddress: string;
+    lastUsedAt: string;
+    times: number;
+  }[];
+  recentOrders: OrderListItem[];
+}

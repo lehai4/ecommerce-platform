@@ -53,4 +53,10 @@ export class User implements Prisma.UserUncheckedCreateInput {
    * @example "2022-03-26T15:41:28.527Z"
    */
   updatedAt?: string | Date;
+
+  /**
+   * When the account was locked; null when active
+   * @example null
+   */
+  blockedAt?: string | Date | null;
 }

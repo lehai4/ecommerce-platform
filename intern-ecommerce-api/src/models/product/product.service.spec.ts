@@ -19,6 +19,9 @@ const PrismaServiceMock = {
   provide: PrismaService,
   useValue: {
     $transaction: jest.fn().mockImplementation((queries) => Promise.all(queries)),
+    stockMovement: {
+      create: jest.fn(),
+    },
     productImage: {
       findFirst: jest.fn().mockImplementation(({ where }) => {
         return imageArray
@@ -34,6 +37,7 @@ const PrismaServiceMock = {
     product: {
       create: jest.fn().mockImplementation(({ data }) => {
         productArray.push({ ...data });
+        return productArray[productArray.length - 1];
       }),
       findUnique: jest.fn().mockImplementation(({ where }) => {
         return productArray.find((product) => {

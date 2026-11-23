@@ -28,7 +28,9 @@
     "studio:test": "dotenv -e .env.test -- prisma studio",
     "compodoc": "npx @compodoc/compodoc -p tsconfig.json -d ./docs",
     "migrate:deploy": "npx prisma migrate deploy",
-    "build:docker": "prisma migrate deploy && npm run start:prod"
+    "build:docker": "prisma migrate deploy && npm run start:prod",
+    "seed:demo": "dotenv -e .env.local -- ts-node --transpile-only prisma/seed-demo.ts",
+    "seed:demo:clean": "dotenv -e .env.local -- ts-node --transpile-only prisma/seed-demo.ts --clean"
   },
   "dependencies": {
     "@nestjs/cli": "^8.2.6",

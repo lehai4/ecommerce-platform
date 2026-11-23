@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, ProductStatus, Role } from '@prisma/client';
+import {
+  OrderStatus,
+  Prisma,
+  ProductStatus,
+  Role,
+  StockReason,
+} from '@prisma/client';
 import { randomBytes } from 'crypto';
 import currency from 'currency.js';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -12,6 +18,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { FindOrdersDto } from './dto/find-orders.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { canTransition, ORDER_STATUS_TRANSITIONS } from './order-status';
+import { recordStockMovement } from '../stock/record-stock-movement';
 
 /** What is returned for every order */
 const orderInclude = {
@@ -114,7 +121,7 @@ export class OrderService {
         });
       }
 
-      return tx.order.create({
+      const order = await tx.order.create({
         data: {
           code: this.generateCode(),
           user: { connect: { id: userId } },
@@ -132,6 +139,17 @@ export class OrderService {
         },
         include: orderInclude,
       });
+
+      for (const item of order.items) {
+        await recordStockMovement(tx, {
+          productId: item.productId,
+          change: -item.quantity,
+          reason: StockReason.SALE,
+          orderId: order.id,
+          userId,
+        });
+      }
+      return order;
     });
   }
 
@@ -265,6 +283,14 @@ export class OrderService {
               stock: { increment: item.quantity },
               soldCount: { decrement: item.quantity },
             },
+          });
+          await recordStockMovement(tx, {
+            productId: item.productId,
+            change: item.quantity,
+            reason: StockReason.ORDER_CANCELLED,
+            note: note?.trim() || null,
+            orderId: order.id,
+            userId: changedById,
           });
         }
       }

@@ -9,11 +9,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   ParseUUIDPipe,
   UploadedFile,
   UploadedFiles,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { Public } from 'src/auth/public.decorator';
 import {
   FileUpload,
@@ -49,8 +51,12 @@ export class ProductController {
   @ApiOperation({ summary: 'Admin creates a new product' })
   @IsAdmin()
   @Post()
-  create(@Body() createProductDto: CreateProductDto): Promise<Product> {
-    return this.productService.create(createProductDto);
+  create(
+    @Req() request: Request,
+    @Body() createProductDto: CreateProductDto,
+  ): Promise<Product> {
+    const { userId } = request.user as { userId: string };
+    return this.productService.create(createProductDto, userId);
   }
 
   /** Products shown in the shop (only ACTIVE).
@@ -167,10 +173,12 @@ export class ProductController {
   @IsAdmin()
   @Patch(':id')
   update(
+    @Req() request: Request,
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
   ): Promise<Product> {
-    return this.productService.update(id, updateProductDto);
+    const { userId } = request.user as { userId: string };
+    return this.productService.update(id, updateProductDto, userId);
   }
 
   /** Soft deletes the product (kept for existing orders), only for admins */
