@@ -2,7 +2,6 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
 import ProductForm, { ProductFormValues } from "@/components/product/ProductForm";
-import { uploadProductPicture } from "@/components/product/uploadProductPicture";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { apiErrorMessage } from "@/lib/apiError";
 import type { ProductProps } from "@/type";
@@ -27,7 +26,7 @@ const EditProduct = () => {
       .catch(() => setNotFound(true));
   }, [id]);
 
-  const onSubmit = async (values: ProductFormValues, picture: File | null) => {
+  const onSubmit = async (values: ProductFormValues) => {
     if (!product) return;
     setSubmitting(true);
     try {
@@ -35,9 +34,6 @@ const EditProduct = () => {
         `/product/${product.id}`,
         values
       );
-      if (picture) {
-        await uploadProductPicture(axiosAuth, product.id, picture);
-      }
       toast.success(`"${data.name}" saved`);
       navigate("/product-list");
     } catch (error) {
@@ -77,6 +73,7 @@ const EditProduct = () => {
           submitText="Save changes"
           submitting={submitting}
           onSubmit={onSubmit}
+          onProductChange={setProduct}
         />
       ) : (
         <Card>

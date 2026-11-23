@@ -2,7 +2,6 @@ import AxiosJWTInstance from "@/InstanceAxios";
 import Helmet from "@/components/Helmet";
 import PageHeader from "@/components/PageHeader";
 import ProductForm, { ProductFormValues } from "@/components/product/ProductForm";
-import { uploadProductPicture } from "@/components/product/uploadProductPicture";
 import { useAppSelector } from "@/hook/useHookRedux";
 import { apiErrorMessage } from "@/lib/apiError";
 import type { ProductProps } from "@/type";
@@ -16,19 +15,24 @@ const CreateProduct = () => {
   const axiosAuth = AxiosJWTInstance({ user });
   const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = async (values: ProductFormValues, picture: File | null) => {
+  const onSubmit = async (values: ProductFormValues, pendingImages: File[]) => {
     setSubmitting(true);
     try {
       const { data } = await axiosAuth.post<ProductProps>("/product", {
         ...values,
         description: values.description || undefined,
+        sku: values.sku || undefined,
       });
-      if (picture) {
+      if (pendingImages.length) {
         try {
-          await uploadProductPicture(axiosAuth, data.id, picture);
+          const form = new FormData();
+          pendingImages.forEach((file) => form.append("files", file));
+          await axiosAuth.post(`/product/${data.id}/images`, form, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
         } catch (error) {
           toast.warn(
-            `Product created, but the picture failed: ${apiErrorMessage(error)}`
+            `Product created, but the images failed: ${apiErrorMessage(error)}`
           );
           navigate(`/product-list/edit/${data.id}`);
           return;

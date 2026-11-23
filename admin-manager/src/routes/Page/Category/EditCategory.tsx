@@ -5,10 +5,14 @@ import { useAppSelector } from "@/hook/useHookRedux";
 import { apiErrorMessage } from "@/lib/apiError";
 import type { Category } from "@/type";
 import { Button, Card, Result, Skeleton } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import CategoryForm, { CategoryFormValues } from "./CategoryForm";
+import CategoryForm, {
+  CategoryFormValues,
+  CategoryImageChange,
+} from "./CategoryForm";
+import { saveCategoryImage } from "./saveCategoryImage";
 
 const EditCategory = () => {
   const { id } = useParams();
@@ -26,15 +30,29 @@ const EditCategory = () => {
       .catch(() => setNotFound(true));
   }, [id]);
 
-  const onSubmit = async (values: CategoryFormValues) => {
+  const initialValues = useMemo<CategoryFormValues | undefined>(
+    () =>
+      category && {
+        name: category.name,
+        slug: category.slug,
+        description: category.description ?? "",
+        parentId: category.parentId ?? undefined,
+      },
+    [category]
+  );
+
+  const onSubmit = async (
+    values: CategoryFormValues,
+    image: CategoryImageChange
+  ) => {
+    if (!category) return;
     setSubmitting(true);
     try {
       // Only send the slug when the admin changed it
-      const body =
-        values.slug && values.slug !== category?.slug
-          ? values
-          : { name: values.name };
-      const { data } = await axiosAuth.patch(`/category/${id}`, body);
+      const { slug, ...rest } = values;
+      const body = slug && slug !== category.slug ? values : rest;
+      const { data } = await axiosAuth.patch(`/category/${category.id}`, body);
+      await saveCategoryImage(axiosAuth, category.id, image);
       toast.success(`"${data.name}" saved`);
       navigate("/category");
     } catch (error) {
@@ -70,8 +88,9 @@ const EditCategory = () => {
       />
       {category ? (
         <CategoryForm
-          isEdit
-          initialValues={{ name: category.name, slug: category.slug }}
+          categoryId={category.id}
+          initialValues={initialValues}
+          currentImage={category.image}
           submitText="Save changes"
           submitting={submitting}
           onSubmit={onSubmit}

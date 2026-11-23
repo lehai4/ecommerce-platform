@@ -60,6 +60,8 @@ const ProductList = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [pictureFor, setPictureFor] = useState<ProductProps>();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const updateParams = (next: Record<string, string | undefined>) => {
     const merged = new URLSearchParams(params);
@@ -89,6 +91,36 @@ const ProductList = () => {
   }, [params]);
 
   useEffect(load, [load]);
+  useEffect(() => setSelected([]), [params]);
+
+  const runBulk = async (
+    action: () => Promise<{ data: { count: number } }>,
+    done: (count: number) => string
+  ) => {
+    setBulkBusy(true);
+    try {
+      const { data } = await action();
+      toast.success(done(data.count));
+      setSelected([]);
+      load();
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkStatus = (value: ProductStatus) =>
+    runBulk(
+      () => axiosAuth.patch("/product/bulk/status", { ids: selected, status: value }),
+      (count) => `${count} product(s) set to ${PRODUCT_STATUS_META[value].label}`
+    );
+
+  const bulkDelete = () =>
+    runBulk(
+      () => axiosAuth.post("/product/bulk/delete", { ids: selected }),
+      (count) => `${count} product(s) deleted`
+    );
 
   useEffect(() => {
     axiosAuth
@@ -150,6 +182,11 @@ const ProductList = () => {
                 {product.name}
               </Typography.Text>
             </Link>
+            {product.sku && (
+              <Typography.Text type="secondary" className="block font-mono text-xs">
+                {product.sku}
+              </Typography.Text>
+            )}
             <div className="mt-1 flex flex-wrap gap-1">
               {product.categories?.length ? (
                 product.categories.map((c) => (
@@ -337,8 +374,43 @@ const ProductList = () => {
             />
           </div>
         </div>
+        {selected.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-indigo-500/10 px-3 py-2">
+            <Typography.Text strong>{selected.length} selected</Typography.Text>
+            <Select
+              size="small"
+              placeholder="Set status"
+              value={null}
+              disabled={bulkBusy}
+              onChange={(value: ProductStatus) => bulkStatus(value)}
+              options={PRODUCT_STATUSES.map((value) => ({
+                value,
+                label: PRODUCT_STATUS_META[value].label,
+              }))}
+              className="w-32"
+            />
+            <Popconfirm
+              title={`Delete ${selected.length} product(s)?`}
+              description="They will disappear from the shop and this list."
+              onConfirm={bulkDelete}
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} loading={bulkBusy}>
+                Delete
+              </Button>
+            </Popconfirm>
+            <Button size="small" type="text" onClick={() => setSelected([])}>
+              Clear
+            </Button>
+          </div>
+        )}
         <Table
           rowKey="id"
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: (keys) => setSelected(keys as string[]),
+          }}
           columns={columns}
           dataSource={result?.data ?? []}
           loading={loading}

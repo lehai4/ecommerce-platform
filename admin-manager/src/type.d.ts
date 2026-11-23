@@ -8,11 +8,20 @@ export interface ThemeContextProp {
 
 export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
+export interface ProductImage {
+  id: string;
+  url: string;
+  position: number;
+}
+
 export interface ProductProps {
   id: string;
   name: string;
   urlName: string;
+  /** Cover = first image */
   picture: string;
+  images?: ProductImage[];
+  sku?: string | null;
   basePrice: string;
   discountPercentage: number;
   /** Price after discount */
@@ -64,7 +73,14 @@ export interface Category {
   id: string;
   name: string;
   slug: string;
+  description?: string | null;
+  image?: string | null;
+  parentId?: string | null;
   _count?: { products: number };
+}
+
+export interface CategoryNode extends Category {
+  children: CategoryNode[];
 }
 export interface DataTypeContact {
   key: React.Key;

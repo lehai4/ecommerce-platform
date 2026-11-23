@@ -1,8 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
+import { ImageStorageService } from 'src/common/image-storage/image-storage.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { uniqueSlug } from 'src/util/slugify';
 import { FindProductsDto } from '../product/dto/find-products.dto';
+import { File } from '../product/types/file';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -19,25 +25,39 @@ const productSelect = {
   stock: true,
 } satisfies Prisma.ProductSelect;
 
+const relatedSelect = { select: { id: true, name: true, slug: true } };
+
+/** A category with its sub-categories, for the tree */
+export type CategoryNode = Prisma.CategoryGetPayload<{
+  include: { _count: { select: { products: true } } };
+}> & { children: CategoryNode[] };
+
 /** Responsible for managing categories in the database. */
 @Injectable()
 export class CategoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly imageStorage: ImageStorageService,
+  ) {}
 
   /** Creates a new category */
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     const name = this.capitalizeOnlyFirstLetter(createCategoryDto.name);
+    const { parentId, description } = createCategoryDto;
+    if (parentId) await this.assertExists(parentId, 'Parent category not found');
 
     return this.prisma.category.create({
       data: {
         name,
         slug: await this.uniqueCategorySlug(createCategoryDto.slug || name),
+        description: description || null,
+        parentId: parentId || null,
       },
     });
   }
 
-  /** Returns all categories with pagination and can search by name.
-   * Ordered by name, each with its number of products.
+  /** Returns categories with pagination and can search by name.
+   * Ordered by name, each with its number of products and parent id.
    */
   async findAll({
     categoryName = '',
@@ -55,6 +75,24 @@ export class CategoryService {
     });
   }
 
+  /** Every category as a tree (top level first, children sorted by name) */
+  async findTree(): Promise<CategoryNode[]> {
+    const all = await this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { products: true } } },
+    });
+    const nodes = new Map<string, CategoryNode>(
+      all.map((c) => [c.id, { ...c, children: [] }]),
+    );
+    const roots: CategoryNode[] = [];
+    for (const node of nodes.values()) {
+      const parent = node.parentId ? nodes.get(node.parentId) : undefined;
+      if (parent) parent.children.push(node);
+      else roots.push(node);
+    }
+    return roots;
+  }
+
   /** Find category by ID with its products (any status), for admins */
   async findOneById(
     id: string,
@@ -63,6 +101,8 @@ export class CategoryService {
     return this.prisma.category.findUnique({
       where: { id },
       include: {
+        parent: relatedSelect,
+        children: { ...relatedSelect, orderBy: { name: 'asc' } },
         products: this.productsQuery(findProductsDto, { deletedAt: null }),
       },
       rejectOnNotFound: true,
@@ -70,7 +110,7 @@ export class CategoryService {
   }
 
   /** Find category by slug (or by name, for older links) with the
-   * products shown in the shop
+   * products shown in the shop, its parent and sub-categories
    */
   async findOneBySlugOrName(
     slugOrName: string,
@@ -84,6 +124,8 @@ export class CategoryService {
         ],
       },
       include: {
+        parent: relatedSelect,
+        children: { ...relatedSelect, orderBy: { name: 'asc' } },
         products: this.productsQuery(findProductsDto, {
           deletedAt: null,
           status: ProductStatus.ACTIVE,
@@ -100,20 +142,65 @@ export class CategoryService {
     id: string,
     updateCategoryDto: UpdateCategoryDto,
   ): Promise<Category> {
-    const data: Prisma.CategoryUpdateInput = {};
-    if (updateCategoryDto.name) {
-      data.name = this.capitalizeOnlyFirstLetter(updateCategoryDto.name);
+    const { name, slug, description, parentId } = updateCategoryDto;
+    const data: Prisma.CategoryUncheckedUpdateInput = {};
+
+    if (name) {
+      data.name = this.capitalizeOnlyFirstLetter(name);
     }
-    if (updateCategoryDto.slug) {
-      data.slug = await this.uniqueCategorySlug(updateCategoryDto.slug, id);
+    if (slug) {
+      data.slug = await this.uniqueCategorySlug(slug, id);
+    }
+    if (description !== undefined) {
+      data.description = description || null;
+    }
+    if (parentId !== undefined) {
+      if (parentId) await this.assertValidParent(id, parentId);
+      data.parentId = parentId || null;
     }
 
     return this.prisma.category.update({ where: { id }, data });
   }
 
-  /** Removes category from database (products keep existing) */
+  /** Sets (or replaces) the category image */
+  async uploadImage(id: string, file: File): Promise<Category> {
+    if (!file) {
+      throw new BadRequestException('Please choose an image to upload');
+    }
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      rejectOnNotFound: true,
+    });
+
+    const stored = await this.imageStorage.upload(file, 'categories');
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: { image: stored.url, imagePublicId: stored.publicId },
+    });
+    await this.imageStorage.remove(category.imagePublicId);
+    return updated;
+  }
+
+  /** Removes the category image */
+  async removeImage(id: string): Promise<Category> {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      rejectOnNotFound: true,
+    });
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: { image: null, imagePublicId: null },
+    });
+    await this.imageStorage.remove(category.imagePublicId);
+    return updated;
+  }
+
+  /** Removes category from database. Products keep existing and
+   * sub-categories move to the top level.
+   */
   async remove(id: string): Promise<void> {
-    await this.prisma.category.delete({ where: { id } });
+    const category = await this.prisma.category.delete({ where: { id } });
+    await this.imageStorage.remove(category.imagePublicId);
   }
 
   private productsQuery(
@@ -130,6 +217,33 @@ export class CategoryService {
       skip: (page - 1) * offset,
       take: offset,
     };
+  }
+
+  /** A category can't be its own parent, nor be moved under one of its children */
+  private async assertValidParent(id: string, parentId: string): Promise<void> {
+    if (parentId === id) {
+      throw new BadRequestException('A category cannot be its own parent');
+    }
+    const all = await this.prisma.category.findMany({
+      select: { id: true, parentId: true },
+    });
+    const byId = new Map(all.map((c) => [c.id, c.parentId]));
+    if (!byId.has(parentId)) {
+      throw new NotFoundException('Parent category not found');
+    }
+    // Walk up from the new parent; reaching `id` means a loop
+    for (let cur: string | null = parentId; cur; cur = byId.get(cur) ?? null) {
+      if (cur === id) {
+        throw new BadRequestException(
+          'A category cannot be moved under one of its own sub-categories',
+        );
+      }
+    }
+  }
+
+  private async assertExists(id: string, message: string): Promise<void> {
+    const count = await this.prisma.category.count({ where: { id } });
+    if (!count) throw new NotFoundException(message);
   }
 
   /** Capitalize only the first letter of the category name */

@@ -9,12 +9,15 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UploadedFile,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from 'src/auth/public.decorator';
 import { IsAdmin } from 'src/common/decorators/is-admin.decorator';
+import { FileUpload } from 'src/common/decorators/file-upload.decorator';
+import { File } from '../product/types/file';
 import { FindProductsDto } from '../product/dto/find-products.dto';
-import { CategoryService } from './category.service';
+import { CategoryNode, CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -52,6 +55,34 @@ export class CategoryController {
     @Query() findCategoriesDto: FindCategoriesDto,
   ): Promise<Category[]> {
     return this.categoryService.findAll(findCategoriesDto);
+  }
+
+  /** Every category as a tree, for menus and filters */
+  @ApiOperation({ summary: 'Returns all categories as a tree' })
+  @Public()
+  @Get('tree')
+  async findTree(): Promise<CategoryNode[]> {
+    return this.categoryService.findTree();
+  }
+
+  /** Sets the category image (field "file") */
+  @ApiOperation({ summary: 'Admin sets the category image' })
+  @IsAdmin()
+  @FileUpload()
+  @Post(':id/image')
+  async uploadImage(
+    @Param('id') id: string,
+    @UploadedFile() file: File,
+  ): Promise<Category> {
+    return this.categoryService.uploadImage(id, file);
+  }
+
+  /** Removes the category image */
+  @ApiOperation({ summary: 'Admin removes the category image' })
+  @IsAdmin()
+  @Delete(':id/image')
+  async removeImage(@Param('id') id: string): Promise<Category> {
+    return this.categoryService.removeImage(id);
   }
 
   /** Find category by ID, only for admins */

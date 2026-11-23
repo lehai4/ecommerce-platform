@@ -9,6 +9,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
+  ValidateIf,
 } from 'class-validator';
 import { Product } from '../entities/product.entity';
 
@@ -76,4 +78,17 @@ export class CreateProductDto extends OmitType(Product, [
   @IsOptional()
   @IsEnum(ProductStatus)
   status?: ProductStatus;
+
+  /**
+   * Stock keeping unit: letters, numbers, ".", "_" and "-" (max 64).
+   * Must be unique. Send null to remove it.
+   * @example "TSHIRT-M-BLACK"
+   */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Matches(/^[A-Za-z0-9._-]{1,64}$/, {
+    message: 'sku can only contain letters, numbers, ".", "_" and "-" (max 64)',
+  })
+  sku?: string | null;
 }

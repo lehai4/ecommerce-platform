@@ -40,7 +40,12 @@ model Product {
   id                 String        @id @default(uuid())
   name               String        @unique
   urlName            String        @unique
+  /// Cover picture = url of the first image; kept in sync by ProductService
   picture            String?
+  /// Stock keeping unit, unique code for inventory
+  sku                String?       @unique
+  /// Name and SKU without accents, lower case; used for accent-insensitive search
+  searchText         String        @default("")
   basePrice          Decimal
   discountPercentage Int           @default(0)
   /// Price after discount; kept in sync by ProductService, used to filter/sort by price
@@ -55,6 +60,7 @@ model Product {
   /// Soft delete: hidden everywhere but kept so orders/purchases stay valid
   deletedAt          DateTime?
   categories         Category[]
+  images             ProductImage[]
   Purchase           Purchase[]
   orderItems         OrderItem[]
 
@@ -62,6 +68,20 @@ model Product {
   @@index([salePrice])
   @@index([createdAt])
   @@index([soldCount])
+}
+
+/// A product picture. position 0 is the cover.
+model ProductImage {
+  id        String   @id @default(uuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  url       String
+  /// Cloudinary public_id ("local:<file>" for local storage); used to delete the file
+  publicId  String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId, position])
 }
 
 /// DRAFT: being prepared, ACTIVE: visible in the shop, ARCHIVED: no longer sold
@@ -72,11 +92,20 @@ enum ProductStatus {
 }
 
 model Category {
-  id       String    @id @default(uuid())
-  name     String    @unique
+  id            String     @id @default(uuid())
+  name          String     @unique
   /// URL friendly name, e.g. "ao-thun"
-  slug     String    @unique
-  products Product[]
+  slug          String     @unique
+  description   String?
+  image         String?
+  imagePublicId String?
+  /// Parent category; null for top level. Children are kept (moved to top level) when the parent is deleted
+  parent        Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId      String?
+  children      Category[] @relation("CategoryTree")
+  products      Product[]
+
+  @@index([parentId])
 }
 
 model Purchase {

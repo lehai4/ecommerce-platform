@@ -27,6 +27,12 @@ export class Product implements Prisma.ProductUncheckedCreateInput {
   picture?: string;
 
   /**
+   * Stock keeping unit
+   * @example "TSHIRT-M-BLACK"
+   */
+  sku?: string | null;
+
+  /**
    * Product price not considering discounts.
    * Saved as decimal, calculations should be handled
    * with currency.js

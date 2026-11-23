@@ -5,7 +5,7 @@ import {
   HttpStatus,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { extname } from 'path';
@@ -45,5 +45,24 @@ export function FileUpload(): <TFunction>(
     UseInterceptors(FileInterceptor('file', fileConfig)),
     ApiConsumes('multipart/form-data'),
     ApiBody({ type: FileUploadDto }),
+  );
+}
+
+/** Upload several images at once in the "files" field (max 10) */
+export function FilesUpload(): <TFunction>(
+  target: object | TFunction,
+  propertyKey?: string | symbol,
+) => void {
+  return applyDecorators(
+    UseInterceptors(FilesInterceptor('files', 10, fileConfig)),
+    ApiConsumes('multipart/form-data'),
+    ApiBody({
+      schema: {
+        type: 'object',
+        properties: {
+          files: { type: 'array', items: { type: 'string', format: 'binary' } },
+        },
+      },
+    }),
   );
 }

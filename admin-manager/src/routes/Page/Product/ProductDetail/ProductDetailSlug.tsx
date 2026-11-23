@@ -32,6 +32,8 @@ const ProductDetailSlug = () => {
   const dispath = useAppDispatch();
   const [product, setProduct] = useState<ProductProps>();
   const [quantity, setQuantity] = useState<number>(1);
+  const [activeImage, setActiveImage] = useState(0);
+  const gallery = (product?.images ?? []).map((image) => image.url);
   const handleReview = () => {
     toast.info("Thanks you because seen product!");
   };
@@ -81,13 +83,44 @@ const ProductDetailSlug = () => {
       ) : (
         <Card>
           <div className="grid gap-8 md:grid-cols-2">
-            <div className="overflow-hidden rounded-xl bg-slate-50">
-              <Image
-                width="100%"
-                src={pictureUrl(product.picture, 600)}
-                alt={product.name}
-                className="aspect-square object-cover"
-              />
+            <div className="flex flex-col gap-3">
+              <div className="overflow-hidden rounded-xl bg-slate-50">
+                <Image.PreviewGroup
+                  items={(gallery.length ? gallery : [product.picture]).map((url) =>
+                    pictureUrl(url)
+                  )}
+                >
+                  <Image
+                    width="100%"
+                    src={pictureUrl(gallery[activeImage] ?? product.picture, 600)}
+                    alt={product.name}
+                    className="aspect-square object-cover"
+                  />
+                </Image.PreviewGroup>
+              </div>
+              {gallery.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {gallery.map((url, index) => (
+                    <button
+                      key={url}
+                      type="button"
+                      onClick={() => setActiveImage(index)}
+                      className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${
+                        index === activeImage
+                          ? "border-indigo-500"
+                          : "border-transparent opacity-70 hover:opacity-100"
+                      }`}
+                      aria-label={`Show image ${index + 1}`}
+                    >
+                      <img
+                        src={pictureUrl(url, 64)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex flex-col">
               <Space size={[8, 8]} wrap className="mb-3">

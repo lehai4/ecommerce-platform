@@ -1,7 +1,6 @@
 import AxiosJWTInstance from "@/InstanceAxios";
 import { formatMoney } from "@/constants/order";
 import { useAppSelector } from "@/hook/useHookRedux";
-import { pictureUrl } from "@/lib/image";
 import { PRODUCT_STATUSES, PRODUCT_STATUS_META } from "@/constants/product";
 import type { Category, ProductProps, ProductStatus } from "@/type";
 import {
@@ -17,7 +16,7 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import ImagePicker from "./ImagePicker";
+import ProductImagesManager from "./ProductImagesManager";
 
 export type ProductFormValues = {
   name: string;
@@ -27,6 +26,7 @@ export type ProductFormValues = {
   stock: number;
   categories: string[];
   status: ProductStatus;
+  sku?: string | null;
 };
 
 type ProductFormProps = {
@@ -34,7 +34,10 @@ type ProductFormProps = {
   product?: ProductProps;
   submitText: string;
   submitting?: boolean;
-  onSubmit: (values: ProductFormValues, picture: File | null) => void;
+  /** `pendingImages`: images chosen before the product exists (create only) */
+  onSubmit: (values: ProductFormValues, pendingImages: File[]) => void;
+  /** Called when images of a saved product change */
+  onProductChange?: (product: ProductProps) => void;
 };
 
 const toValues = (product?: ProductProps): Partial<ProductFormValues> =>
@@ -47,6 +50,7 @@ const toValues = (product?: ProductProps): Partial<ProductFormValues> =>
         stock: Number(product.stock) || 0,
         categories: (product.categories ?? []).map((c) => c.id),
         status: product.status ?? "ACTIVE",
+        sku: product.sku ?? "",
       }
     : { discountPercentage: 0, stock: 0, categories: [], status: "ACTIVE" };
 
@@ -56,12 +60,13 @@ const ProductForm = ({
   submitText,
   submitting,
   onSubmit,
+  onProductChange,
 }: ProductFormProps) => {
   const [form] = Form.useForm<ProductFormValues>();
   const user = useAppSelector((state) => state.auth.login.currentUser);
   const axiosAuth = AxiosJWTInstance({ user });
   const [categories, setCategories] = useState<Category[]>([]);
-  const [picture, setPicture] = useState<File | null>(null);
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
   const {
     token: { colorBgLayout },
   } = theme.useToken();
@@ -78,14 +83,15 @@ const ProductForm = ({
       .catch(() => undefined);
   }, []);
 
+  // Only when another product is loaded: image changes must not wipe unsaved edits
   useEffect(() => {
     form.setFieldsValue(toValues(product));
-  }, [product]);
+  }, [product?.id]);
 
   const reset = () => {
     form.resetFields();
     form.setFieldsValue(toValues(product));
-    setPicture(null);
+    setPendingImages([]);
   };
 
   return (
@@ -94,7 +100,9 @@ const ProductForm = ({
       layout="vertical"
       requiredMark="optional"
       initialValues={toValues(product)}
-      onFinish={(values) => onSubmit(values, picture)}
+      onFinish={(values) =>
+        onSubmit({ ...values, sku: values.sku?.trim() || null }, pendingImages)
+      }
       disabled={submitting}
       autoComplete="off"
     >
@@ -107,6 +115,19 @@ const ProductForm = ({
               rules={[{ required: true, message: "Please enter a name" }]}
             >
               <Input size="large" placeholder="e.g. Wireless headphones" />
+            </Form.Item>
+            <Form.Item<ProductFormValues>
+              name="sku"
+              label="SKU"
+              tooltip="Your own unique code for this product, used for stock and search"
+              rules={[
+                {
+                  pattern: /^[A-Za-z0-9._-]{0,64}$/,
+                  message: 'Use letters, numbers, ".", "_" or "-" (max 64)',
+                },
+              ]}
+            >
+              <Input size="large" placeholder="e.g. TSHIRT-M-BLACK" className="sm:max-w-xs" />
             </Form.Item>
             <Form.Item<ProductFormValues>
               name="description"
@@ -195,13 +216,12 @@ const ProductForm = ({
                 ?.description}
             </Typography.Text>
           </Card>
-          <Card title="Picture">
-            <ImagePicker
-              value={picture}
-              currentUrl={
-                product?.picture ? pictureUrl(product.picture, 400) : undefined
-              }
-              onChange={setPicture}
+          <Card title="Images">
+            <ProductImagesManager
+              product={product}
+              onProductChange={onProductChange}
+              pending={pendingImages}
+              onPendingChange={setPendingImages}
             />
           </Card>
           <Card title="Categories">

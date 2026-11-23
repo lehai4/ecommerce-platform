@@ -1,6 +1,7 @@
 import { Provider } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ImageStorageService } from 'src/common/image-storage/image-storage.service';
 import { CategoryService } from './category.service';
 import { Category } from './entities/category.entity';
 
@@ -49,7 +50,7 @@ const PrismaServiceMock = {
           return category.id === where.id;
         });
 
-        categoryArray.splice(categoryIndex, 1);
+        return categoryArray.splice(categoryIndex, 1)[0];
       }),
     },
   },
@@ -61,7 +62,14 @@ describe('CategoryService', () => {
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CategoryService, PrismaServiceMock],
+      providers: [
+        CategoryService,
+        PrismaServiceMock,
+        {
+          provide: ImageStorageService,
+          useValue: { upload: jest.fn(), remove: jest.fn() },
+        },
+      ],
     }).compile();
 
     categoryService = module.get<CategoryService>(CategoryService);
@@ -97,7 +105,12 @@ describe('CategoryService', () => {
       expect(categoryArray[3].name).toEqual('Categoria');
 
       expect(prismaService.category.create).toHaveBeenCalledWith({
-        data: { name: 'Categoria', slug: 'categoria' },
+        data: {
+          name: 'Categoria',
+          slug: 'categoria',
+          description: null,
+          parentId: null,
+        },
       });
     });
 
@@ -111,7 +124,12 @@ describe('CategoryService', () => {
       expect(categoryArray[3].name).toEqual('Categoria teste');
 
       expect(prismaService.category.create).toHaveBeenCalledWith({
-        data: { name: 'Categoria teste', slug: 'categoria-teste' },
+        data: {
+          name: 'Categoria teste',
+          slug: 'categoria-teste',
+          description: null,
+          parentId: null,
+        },
       });
     });
   });
@@ -171,7 +189,7 @@ describe('CategoryService', () => {
       expect(prismaService.category.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'ec3b4cfc-5028-47c2-b631-970088efae5e' },
-          include: {
+          include: expect.objectContaining({
             products: expect.objectContaining({
               where: {
                 deletedAt: null,
@@ -180,7 +198,7 @@ describe('CategoryService', () => {
               skip: 40,
               take: 20,
             }),
-          },
+          }),
           rejectOnNotFound: true,
         }),
       );
@@ -226,7 +244,7 @@ describe('CategoryService', () => {
       expect(prismaService.category.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { OR: [{ slug: 'Madeira' }, { name: 'Madeira' }] },
-          include: {
+          include: expect.objectContaining({
             products: expect.objectContaining({
               where: {
                 deletedAt: null,
@@ -236,7 +254,7 @@ describe('CategoryService', () => {
               skip: 40,
               take: 20,
             }),
-          },
+          }),
           rejectOnNotFound: true,
         }),
       );

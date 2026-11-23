@@ -6,14 +6,31 @@ import { File } from './types/file';
 import { ImageStorageService } from 'src/common/image-storage/image-storage.service';
 
 let productArray: Product[] = [];
+let imageArray: { productId: string; url: string; position: number }[] = [];
 const CATEGORY_INCLUDE = {
   categories: { select: { id: true, name: true, slug: true } },
+  images: {
+    select: { id: true, url: true, position: true },
+    orderBy: { position: 'asc' },
+  },
 };
 
 const PrismaServiceMock = {
   provide: PrismaService,
   useValue: {
     $transaction: jest.fn().mockImplementation((queries) => Promise.all(queries)),
+    productImage: {
+      findFirst: jest.fn().mockImplementation(({ where }) => {
+        return imageArray
+          .filter((image) => image.productId === where.productId)
+          .sort((a, b) => a.position - b.position)[0];
+      }),
+      create: jest.fn().mockImplementation(({ data }) => {
+        imageArray.push(data);
+        return data;
+      }),
+      update: jest.fn(),
+    },
     product: {
       create: jest.fn().mockImplementation(({ data }) => {
         productArray.push({ ...data });
@@ -69,9 +86,11 @@ describe('ProductService', () => {
         {
           provide: ImageStorageService,
           useValue: {
-            upload: jest.fn().mockImplementation(
-              (file: File) => `localhost:8070/${file.filename}`,
-            ),
+            upload: jest.fn().mockImplementation((file: File) => ({
+              url: `localhost:8070/${file.filename}`,
+              publicId: `local:${file.filename}`,
+            })),
+            remove: jest.fn(),
           },
         },
       ],
@@ -83,6 +102,7 @@ describe('ProductService', () => {
 
   beforeEach(async () => {
     productArray = [];
+    imageArray = [];
 
     await productService.create({
       name: 'Brand1 black wheelchair',
@@ -140,6 +160,8 @@ describe('ProductService', () => {
         data: {
           name: 'Brand3 black wheelchair',
           urlName: 'brand3-black-wheelchair',
+          sku: null,
+          searchText: 'brand3-black-wheelchair',
           basePrice: '70.00',
           discountPercentage: 5,
           salePrice: 66.5,
@@ -172,6 +194,8 @@ describe('ProductService', () => {
         data: {
           name: 'Brand3 black wheelchair',
           urlName: 'brand3-black-wheelchair',
+          sku: null,
+          searchText: 'brand3-black-wheelchair',
           basePrice: '70.00',
           discountPercentage: 5,
           salePrice: 66.5,
@@ -288,6 +312,7 @@ describe('ProductService', () => {
           description: 'Black and orange wheelchair on promotion!',
           stock: 10,
           salePrice: 90,
+          searchText: 'brand2-black-and-orange-wheelchair',
         },
         include: CATEGORY_INCLUDE,
       });
@@ -314,6 +339,7 @@ describe('ProductService', () => {
         data: expect.objectContaining({
           deletedAt: expect.any(Date),
           status: 'ARCHIVED',
+          sku: null,
           categories: { set: [] },
         }),
       });

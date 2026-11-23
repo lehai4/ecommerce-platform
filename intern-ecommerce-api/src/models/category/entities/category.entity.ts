@@ -21,4 +21,10 @@ export class Category
    * @example "decoration"
    */
   slug?: string;
+
+  /** Short text shown on the category page */
+  description?: string | null;
+
+  /** Parent category ID, null for top level */
+  parentId?: string | null;
 }
